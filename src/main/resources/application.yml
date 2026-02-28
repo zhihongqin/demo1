@@ -1,0 +1,58 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: foreign-law-case-system
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:foreign_law_case_system}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:123456}
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      logic-delete-field: isDeleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+      id-type: auto
+  mapper-locations: classpath*:/mapper/**/*.xml
+
+# 微信小程序配置
+wechat:
+  miniapp:
+    app-id: ${WECHAT_APP_ID:your_app_id}
+    app-secret: ${WECHAT_APP_SECRET:your_app_secret}
+    grant-type: authorization_code
+
+# JWT配置
+jwt:
+  secret: ${JWT_SECRET:foreignLawCaseSystemSecretKey2026VeryLongSecureKey}
+  expiration: 604800  # 7天，单位秒
+
+# FastGPT配置
+fastgpt:
+  base-url: ${FASTGPT_BASE_URL:https://api.fastgpt.in/api}
+  api-key: ${FASTGPT_API_KEY:your_fastgpt_api_key}
+  # 翻译应用的API Key
+  translation-api-key: ${FASTGPT_TRANSLATION_KEY:your_translation_key}
+  # 摘要提取应用的API Key
+  summary-api-key: ${FASTGPT_SUMMARY_KEY:your_summary_key}
+  # 重要性评分应用的API Key
+  score-api-key: ${FASTGPT_SCORE_KEY:your_score_key}
+  timeout: 60  # 请求超时秒数
+
+logging:
+  level:
+    org.example.demo1: debug
+    com.baomidou.mybatisplus: warn

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.example.demo1.mapper.LegalCaseMapper">
+
+    <resultMap id="CaseListVOMap" type="org.example.demo1.vo.CaseListVO">
+        <id column="id" property="id"/>
+        <result column="case_no" property="caseNo"/>
+        <result column="title_zh" property="titleZh"/>
+        <result column="title_en" property="titleEn"/>
+        <result column="case_reason" property="caseReason"/>
+        <result column="case_type" property="caseType"/>
+        <result column="country" property="country"/>
+        <result column="court" property="court"/>
+        <result column="judgment_date" property="judgmentDate"/>
+        <result column="summary_zh" property="summaryZh"/>
+        <result column="importance_score" property="importanceScore"/>
+        <result column="keywords" property="keywords"/>
+        <result column="ai_status" property="aiStatus"/>
+        <result column="view_count" property="viewCount"/>
+        <result column="favorite_count" property="favoriteCount"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="is_favorited" property="isFavorited"/>
+    </resultMap>
+
+    <select id="searchCases" resultMap="CaseListVOMap">
+        SELECT
+            lc.id,
+            lc.case_no,
+            lc.title_zh,
+            lc.title_en,
+            lc.case_reason,
+            lc.case_type,
+            lc.country,
+            lc.court,
+            lc.judgment_date,
+            lc.summary_zh,
+            lc.importance_score,
+            lc.keywords,
+            lc.ai_status,
+            lc.view_count,
+            lc.favorite_count,
+            lc.created_at,
+            CASE WHEN uf.id IS NOT NULL THEN 1 ELSE 0 END AS is_favorited
+        FROM legal_case lc
+        LEFT JOIN user_favorite uf ON uf.case_id = lc.id
+            AND uf.user_id = #{userId}
+        WHERE lc.is_deleted = 0
+        <if test="keyword != null and keyword != ''">
+            AND (
+                lc.title_zh LIKE CONCAT('%', #{keyword}, '%')
+                OR lc.title_en LIKE CONCAT('%', #{keyword}, '%')
+                OR lc.case_reason LIKE CONCAT('%', #{keyword}, '%')
+                OR lc.keywords LIKE CONCAT('%', #{keyword}, '%')
+                OR lc.summary_zh LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+        <if test="caseType != null">
+            AND lc.case_type = #{caseType}
+        </if>
+        <if test="country != null and country != ''">
+            AND lc.country = #{country}
+        </if>
+        ORDER BY lc.created_at DESC
+    </select>
+
+</mapper>
