@@ -28,6 +28,8 @@ public class CaseDetailVO {
     private String scoreReason;
     private String keywords;
     private String legalProvisions;
+    private String source;
+    private String url;
 
     private Integer aiStatus;
     private Integer viewCount;

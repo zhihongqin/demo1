@@ -64,6 +64,12 @@ public class LegalCase {
     /** 涉及法律条文 */
     private String legalProvisions;
 
+    /** 案例发布来源 */
+    private String source;
+
+    /** 案例原始访问链接 */
+    private String url;
+
     /** 状态：0-待处理，1-AI处理中，2-处理完成，3-处理失败 */
     private Integer aiStatus;
 

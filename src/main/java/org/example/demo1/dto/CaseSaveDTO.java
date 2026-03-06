@@ -39,4 +39,10 @@ public class CaseSaveDTO {
 
     /** 涉及法律条文 */
     private String legalProvisions;
+
+    @NotBlank(message = "案例发布来源不能为空")
+    private String source;
+
+    @NotBlank(message = "案例原始访问链接不能为空")
+    private String url;
 }

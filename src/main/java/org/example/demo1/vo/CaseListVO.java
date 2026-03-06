@@ -20,6 +20,8 @@ public class CaseListVO {
     private String summaryZh;
     private Integer importanceScore;
     private String keywords;
+    private String source;
+    private String url;
     private Integer aiStatus;
     private Integer viewCount;
     private Integer favoriteCount;

@@ -1,8 +1,8 @@
 -- 涉外法律案例查询小程序 数据库初始化脚本
--- 数据库：foreign_law_case_system
+-- 数据库：foreign_law_case_system_db
 
-CREATE DATABASE IF NOT EXISTS foreign_law_case_system DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE foreign_law_case_system;
+CREATE DATABASE IF NOT EXISTS foreign_law_case_system_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE foreign_law_case_system_db;
 
 -- 用户表
 CREATE TABLE IF NOT EXISTS `user` (
@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS `legal_case` (
     `score_reason`     TEXT COMMENT '评分理由',
     `keywords`         VARCHAR(500) COMMENT '关键词（逗号分隔）',
     `legal_provisions` VARCHAR(1000) COMMENT '涉及法律条文',
+    `source`           VARCHAR(100) NOT NULL COMMENT '案例发布来源',
+    `url`              VARCHAR(512) NOT NULL COMMENT '案例原始访问链接',
     `ai_status`        TINYINT DEFAULT 0 COMMENT 'AI状态：0-待处理，1-处理中，2-已完成，3-失败',
     `view_count`       INT DEFAULT 0 COMMENT '查看次数',
     `favorite_count`   INT DEFAULT 0 COMMENT '收藏次数',

@@ -16,6 +16,8 @@
         <result column="summary_zh" property="summaryZh"/>
         <result column="importance_score" property="importanceScore"/>
         <result column="keywords" property="keywords"/>
+        <result column="source" property="source"/>
+        <result column="url" property="url"/>
         <result column="ai_status" property="aiStatus"/>
         <result column="view_count" property="viewCount"/>
         <result column="favorite_count" property="favoriteCount"/>
@@ -37,6 +39,8 @@
             lc.summary_zh,
             lc.importance_score,
             lc.keywords,
+            lc.source,
+            lc.url,
             lc.ai_status,
             lc.view_count,
             lc.favorite_count,
