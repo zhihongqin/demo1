@@ -52,6 +52,14 @@ fastgpt:
   score-api-key: ${FASTGPT_SCORE_KEY:your_score_key}
   timeout: 60  # 请求超时秒数
 
+# Python 爬虫进程管理配置
+crawler:
+  python:
+    # Python 脚本所在目录（相对于 Spring Boot 启动目录，建议部署时改为绝对路径）
+    script-dir: crawlers
+    # Python 可执行文件：Windows 填 python，Linux/Mac 填 python3
+    executable: python
+
 # CourtListener API 配置
 courtlistener:
   base-url: https://www.courtlistener.com/api/rest/v4
