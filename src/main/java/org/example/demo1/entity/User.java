@@ -27,6 +27,12 @@ public class User {
     /** 手机号 */
     private String phone;
 
+    /** 登录账号（管理员使用） */
+    private String username;
+
+    /** 登录密码，BCrypt 加密（管理员使用） */
+    private String password;
+
     /** 用户角色：0-普通用户，1-管理员 */
     private Integer role;
 

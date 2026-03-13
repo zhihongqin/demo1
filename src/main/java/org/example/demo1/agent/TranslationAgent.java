@@ -5,8 +5,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 翻译 Agent：英文法律案例 → 中文
+ * 超长内容自动分段翻译后拼接，避免超出 FastGPT 输入长度限制（8192 tokens）
  */
 @Slf4j
 @Component
@@ -17,6 +21,9 @@ public class TranslationAgent {
     private String apiKey;
 
     private final FastGptClient fastGptClient;
+
+    /** 每段最大字符数（英文约 6000 字符 ≈ 1500 tokens，留出 prompt 和回复空间） */
+    private static final int MAX_CHUNK_SIZE = 6000;
 
     private static final String SYSTEM_PROMPT = """
             你是一名专业的法律翻译专家，擅长涉外法律文书的翻译工作。
@@ -30,19 +37,94 @@ public class TranslationAgent {
 
     /**
      * 将英文法律案例内容翻译为中文
+     * 内容超过 MAX_CHUNK_SIZE 时自动分段翻译后拼接
      *
      * @param englishContent 英文原文
      * @return 中文翻译
      */
     public String translateToZh(String englishContent) {
+        if (englishContent == null || englishContent.isBlank()) {
+            return "";
+        }
+
         log.info("开始翻译案例，内容长度: {}", englishContent.length());
+
+        if (englishContent.length() <= MAX_CHUNK_SIZE) {
+            return translateChunk(englishContent);
+        }
+
+        // 超长内容分段翻译
+        List<String> chunks = splitIntoChunks(englishContent);
+        log.info("内容过长，分为 {} 段翻译", chunks.size());
+
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < chunks.size(); i++) {
+            log.info("翻译第 {}/{} 段，长度: {}", i + 1, chunks.size(), chunks.get(i).length());
+            String translated = translateChunk(chunks.get(i));
+            result.append(translated);
+            if (i < chunks.size() - 1) {
+                result.append("\n\n");
+            }
+        }
+
+        String finalResult = result.toString();
+        log.info("翻译完成，共 {} 段，结果长度: {}", chunks.size(), finalResult.length());
+        return finalResult;
+    }
+
+    /**
+     * 翻译单个文本片段
+     */
+    private String translateChunk(String chunk) {
         try {
-            String result = fastGptClient.chat(apiKey, SYSTEM_PROMPT, englishContent);
-            log.info("翻译完成，结果长度: {}", result.length());
+            String result = fastGptClient.chat(apiKey, SYSTEM_PROMPT, chunk);
+            if (result == null || result.isBlank()) {
+                log.warn("当前片段翻译结果为空，长度: {}", chunk.length());
+                return "";
+            }
             return result;
         } catch (Exception e) {
-            log.error("翻译失败", e);
+            log.error("片段翻译失败，长度: {}", chunk.length(), e);
             throw e;
         }
+    }
+
+    /**
+     * 将长文本按段落切分为不超过 MAX_CHUNK_SIZE 的片段
+     * 优先按双换行（段落）切分，避免在句子中间截断；
+     * 单个段落超长时按 MAX_CHUNK_SIZE 强制截断
+     */
+    private List<String> splitIntoChunks(String text) {
+        List<String> chunks = new ArrayList<>();
+        String[] paragraphs = text.split("\n\n");
+        StringBuilder current = new StringBuilder();
+
+        for (String para : paragraphs) {
+            if (para.isBlank()) continue;
+
+            if (para.length() > MAX_CHUNK_SIZE) {
+                // 当前缓冲区先入队
+                if (!current.isEmpty()) {
+                    chunks.add(current.toString().trim());
+                    current = new StringBuilder();
+                }
+                // 超长段落按字符数强制截断
+                for (int i = 0; i < para.length(); i += MAX_CHUNK_SIZE) {
+                    chunks.add(para.substring(i, Math.min(i + MAX_CHUNK_SIZE, para.length())));
+                }
+            } else if (current.length() + para.length() + 2 > MAX_CHUNK_SIZE) {
+                // 加入当前段落会超限，先提交缓冲区
+                chunks.add(current.toString().trim());
+                current = new StringBuilder();
+                current.append(para).append("\n\n");
+            } else {
+                current.append(para).append("\n\n");
+            }
+        }
+
+        if (!current.isEmpty()) {
+            chunks.add(current.toString().trim());
+        }
+        return chunks;
     }
 }

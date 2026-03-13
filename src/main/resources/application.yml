@@ -42,15 +42,16 @@ jwt:
 
 # FastGPT配置
 fastgpt:
-  base-url: ${FASTGPT_BASE_URL:https://api.fastgpt.in/api}
-  api-key: ${FASTGPT_API_KEY:your_fastgpt_api_key}
+  base-url: ${FASTGPT_BASE_URL:https://cloud.fastgpt.cn/api}
+  api-key: ${FASTGPT_API_KEY:fastgpt-iBQCE7ynU4HqqwySwoLO034mVAhJjf2hJnh3XLWM2FI7jYvx3Yc7JqIwWnE}
   # 翻译应用的API Key
-  translation-api-key: ${FASTGPT_TRANSLATION_KEY:your_translation_key}
+  translation-api-key: ${FASTGPT_TRANSLATION_KEY:fastgpt-iBQCE7ynU4HqqwySwoLO034mVAhJjf2hJnh3XLWM2FI7jYvx3Yc7JqIwWnE}
   # 摘要提取应用的API Key
-  summary-api-key: ${FASTGPT_SUMMARY_KEY:your_summary_key}
+  summary-api-key: ${FASTGPT_SUMMARY_KEY:fastgpt-iBQCE7ynU4HqqwySwoLO034mVAhJjf2hJnh3XLWM2FI7jYvx3Yc7JqIwWnE}
   # 重要性评分应用的API Key
-  score-api-key: ${FASTGPT_SCORE_KEY:your_score_key}
-  timeout: 60  # 请求超时秒数
+  score-api-key: ${FASTGPT_SCORE_KEY:fastgpt-iBQCE7ynU4HqqwySwoLO034mVAhJjf2hJnh3XLWM2FI7jYvx3Yc7JqIwWnE}
+  model: ${FASTGPT_MODEL:doubao-seed-1-8-251228}
+  timeout: 600  # 请求超时秒数
 
 # Python 爬虫进程管理配置
 crawler:

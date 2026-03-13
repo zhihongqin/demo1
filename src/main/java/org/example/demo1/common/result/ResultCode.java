@@ -17,6 +17,8 @@ public enum ResultCode {
     USER_ALREADY_EXIST(1002, "用户已存在"),
     TOKEN_INVALID(1003, "Token无效或已过期"),
     WECHAT_LOGIN_FAIL(1004, "微信登录失败"),
+    USERNAME_OR_PASSWORD_ERROR(1005, "账号或密码错误"),
+    OLD_PASSWORD_ERROR(1006, "旧密码错误"),
 
     // 案例相关
     CASE_NOT_EXIST(2001, "案例不存在"),

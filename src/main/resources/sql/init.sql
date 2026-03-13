@@ -7,18 +7,25 @@ USE foreign_law_case_system_db;
 -- 用户表
 CREATE TABLE IF NOT EXISTS `user` (
     `id`         BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
-    `openid`     VARCHAR(100) NOT NULL UNIQUE COMMENT '微信openid',
+    `openid`     VARCHAR(100) UNIQUE COMMENT '微信openid（管理员账号可为空）',
     `unionid`    VARCHAR(100) COMMENT '微信unionid',
     `nickname`   VARCHAR(50) COMMENT '昵称',
     `avatar_url` VARCHAR(500) COMMENT '头像URL',
     `phone`      VARCHAR(20) COMMENT '手机号',
+    `username`   VARCHAR(50) UNIQUE COMMENT '登录账号（管理员使用）',
+    `password`   VARCHAR(100) COMMENT '登录密码（BCrypt加密，管理员使用）',
     `role`       TINYINT DEFAULT 0 COMMENT '角色：0-普通用户，1-管理员',
     `status`     TINYINT DEFAULT 0 COMMENT '状态：0-正常，1-禁用',
     `created_at` DATETIME COMMENT '创建时间',
     `updated_at` DATETIME COMMENT '更新时间',
     `is_deleted` TINYINT DEFAULT 0 COMMENT '逻辑删除：0-正常，1-删除',
-    INDEX idx_openid (`openid`)
+    INDEX idx_openid (`openid`),
+    INDEX idx_username (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
+
+-- 初始管理员账号（密码：Admin@123，BCrypt加密）
+INSERT IGNORE INTO `user` (`username`, `password`, `nickname`, `role`, `status`, `created_at`, `updated_at`, `is_deleted`)
+VALUES ('admin', '$2a$10$7EqJtq98hPqEX7fNZaFWoOe3d8bEMfCRBBxBdnFPIRjEKfRkqMXfS', '超级管理员', 1, 0, NOW(), NOW(), 0);
 
 -- 法律案例主表
 CREATE TABLE IF NOT EXISTS `legal_case` (

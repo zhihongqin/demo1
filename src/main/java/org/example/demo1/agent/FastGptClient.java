@@ -27,6 +27,9 @@ public class FastGptClient {
     @Value("${fastgpt.base-url}")
     private String baseUrl;
 
+    @Value("${fastgpt.model}")
+    private String model;
+
     @Value("${fastgpt.timeout:60}")
     private int timeout;
 
@@ -51,7 +54,7 @@ public class FastGptClient {
 
         try {
             ObjectNode requestBody = objectMapper.createObjectNode();
-            requestBody.put("model", "gpt-4o-mini");
+            requestBody.put("model", model);
             requestBody.put("stream", false);
 
             ArrayNode messages = objectMapper.createArrayNode();

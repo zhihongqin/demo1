@@ -56,9 +56,10 @@ public class CourtListenerClient {
 
     /**
      * 通过 clusterId 获取 opinion 全文
+     * 仅返回 plain_text 不为空的案例正文，否则返回空字符串（调用方应将其丢弃）
      *
      * @param clusterId 案例 cluster ID
-     * @return 案例正文文本（优先 plain_text，其次 html_with_citations）
+     * @return plain_text 内容，若为空则返回 ""
      */
     public String fetchOpinionText(String clusterId) {
         String url = baseUrl + "/opinions/?cluster=" + clusterId + "&format=json";
@@ -66,12 +67,9 @@ public class CourtListenerClient {
         if (resp == null) return "";
 
         for (JsonNode op : resp.path("results")) {
-            String text = op.path("plain_text").asText("").trim();
-            if (text.isBlank()) {
-                text = op.path("html_with_citations").asText("").trim();
-            }
-            if (!text.isBlank()) {
-                return text;
+            String plainText = op.path("plain_text").asText("").trim();
+            if (!plainText.isBlank()) {
+                return plainText;
             }
         }
         return "";
