@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.demo1.agent.CaseAgentService;
 import org.example.demo1.entity.LegalCase;
 import org.example.demo1.mapper.LegalCaseMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,6 +54,7 @@ public class CaseCrawlerService {
     private final CourtListenerClient apiClient;
     private final ChinaRelatedFilter filter;
     private final LegalCaseMapper legalCaseMapper;
+    private final CaseAgentService caseAgentService;
 
     @Value("${courtlistener.max-pages:10}")
     private int maxPages;
@@ -191,6 +193,10 @@ public class CaseCrawlerService {
 
         legalCaseMapper.insert(legalCase);
         log.info("[入库] {}", caseName);
+
+        // 入库后异步触发 AI 处理（翻译 + 摘要 + 评分）
+        caseAgentService.processCase(legalCase.getId());
+        log.info("[AI处理] 已触发异步AI处理: caseId={}", legalCase.getId());
         return true;
     }
 

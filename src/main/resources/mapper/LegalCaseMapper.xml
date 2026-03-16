@@ -50,6 +50,9 @@
         LEFT JOIN user_favorite uf ON uf.case_id = lc.id
             AND uf.user_id = #{userId}
         WHERE lc.is_deleted = 0
+        <if test="!isAdmin">
+            AND lc.ai_status = 2
+        </if>
         <if test="keyword != null and keyword != ''">
             AND (
                 lc.title_zh LIKE CONCAT('%', #{keyword}, '%')

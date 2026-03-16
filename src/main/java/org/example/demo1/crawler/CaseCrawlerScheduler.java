@@ -17,10 +17,10 @@ public class CaseCrawlerScheduler {
     private final CaseCrawlerService crawlerService;
 
     /**
-     * 每天凌晨 2:00 自动采集
+     * 每周一凌晨 2:00 自动采集
      * cron 表达式：秒 分 时 日 月 周
      */
-    @Scheduled(cron = "0 0 2 * * ?")
+    @Scheduled(cron = "0 0 2 * * MON")
     public void scheduledCrawl() {
         log.info("[定时采集] 触发每日定时采集任务");
         crawlerService.crawlAll();

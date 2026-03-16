@@ -29,12 +29,20 @@ public class JwtUtil {
      * 生成 JWT Token
      */
     public String generateToken(Long userId, String openid) {
+        return generateToken(userId, openid, 0);
+    }
+
+    /**
+     * 生成 JWT Token（携带角色信息）
+     */
+    public String generateToken(Long userId, String openid, Integer role) {
         Date now = new Date();
         Date expireDate = new Date(now.getTime() + expiration * 1000);
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("openid", openid)
+                .claim("role", role != null ? role : 0)
                 .issuedAt(now)
                 .expiration(expireDate)
                 .signWith(getKey())
@@ -55,6 +63,14 @@ public class JwtUtil {
     public String getOpenid(String token) {
         Claims claims = getClaims(token);
         return claims.get("openid", String.class);
+    }
+
+    /**
+     * 解析 Token，获取用户角色（0-普通用户，1-管理员）
+     */
+    public Integer getRole(String token) {
+        Claims claims = getClaims(token);
+        return claims.get("role", Integer.class);
     }
 
     /**

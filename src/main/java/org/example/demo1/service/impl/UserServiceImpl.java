@@ -64,7 +64,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ResultCode.FORBIDDEN, "账号已被禁用");
         }
 
-        String token = jwtUtil.generateToken(user.getId(), openid);
+        String token = jwtUtil.generateToken(user.getId(), openid, user.getRole());
 
         UserVO vo = new UserVO();
         vo.setId(user.getId());
@@ -122,7 +122,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (user.getStatus() != null && user.getStatus() == 1) {
             throw new BusinessException(ResultCode.FORBIDDEN, "账号已被禁用");
         }
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername());
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
         log.info("管理员登录成功: userId={}, username={}", user.getId(), user.getUsername());
 
         UserVO vo = new UserVO();

@@ -23,8 +23,10 @@ public class AuthInterceptor implements HandlerInterceptor {
 
         if (StringUtils.hasText(token) && jwtUtil.validateToken(token)) {
             Long userId = jwtUtil.getUserId(token);
+            Integer role = jwtUtil.getRole(token);
             UserContext.setUserId(userId);
-            log.debug("用户认证成功: userId={}", userId);
+            UserContext.setUserRole(role);
+            log.debug("用户认证成功: userId={}, role={}", userId, role);
         }
         // 不强制要求登录，具体接口通过 @LoginRequired 注解控制
         return true;

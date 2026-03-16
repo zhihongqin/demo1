@@ -39,7 +39,7 @@ public class CaseAgentService {
     /**
      * 异步对案例进行完整的 AI 处理（翻译 + 摘要 + 评分）
      */
-    @Async
+    @Async("aiTaskExecutor")
     public void processCase(Long caseId) {
         log.info("开始异步AI处理案例: caseId={}", caseId);
 

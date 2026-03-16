@@ -8,14 +8,33 @@ import org.example.demo1.common.result.Result;
 import org.example.demo1.common.result.ResultCode;
 import org.example.demo1.dto.CaseQueryDTO;
 import org.example.demo1.dto.CaseSaveDTO;
+import org.example.demo1.dto.CaseUpdateDTO;
 import org.example.demo1.service.LegalCaseService;
 import org.example.demo1.util.UserContext;
 import org.example.demo1.vo.CaseDetailVO;
 import org.example.demo1.vo.CaseListVO;
+import org.example.demo1.vo.CaseScoreRecordVO;
 import org.example.demo1.vo.CaseScoreVO;
+import org.example.demo1.vo.CaseSummaryRecordVO;
 import org.example.demo1.vo.CaseSummaryVO;
+import org.example.demo1.vo.CaseTranslationRecordVO;
+
+import java.util.List;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * 案例管理接口
+ *
+ * <p>权限说明：
+ * <ul>
+ *   <li>公开接口（无需登录）：查询列表、查看详情</li>
+ *   <li>登录接口：收藏/取消收藏、查看收藏列表</li>
+ *   <li>管理员接口：新增、修正、删除、恢复、触发AI处理</li>
+ * </ul>
+ *
+ * <p>普通用户查询时只能看到 ai_status=2（AI处理完成）且未删除的案例；
+ * 管理员可查看所有状态的案例。
+ */
 @RestController
 @RequestMapping("/cases")
 @RequiredArgsConstructor
@@ -23,30 +42,37 @@ public class LegalCaseController {
 
     private final LegalCaseService legalCaseService;
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // 查询
+    // ─────────────────────────────────────────────────────────────────────────
+
     /**
-     * 分页查询案例列表
-     * GET /api/cases
+     * 分页查询案例列表。
+     * <p>普通用户只能获取已完成AI处理且未删除的案例；管理员可获取全部案例。
      */
     @GetMapping
     public Result<IPage<CaseListVO>> queryCases(CaseQueryDTO dto) {
         Long userId = UserContext.getUserId();
-        return Result.success(legalCaseService.queryCases(dto, userId));
+        boolean isAdmin = UserContext.isAdmin();
+        return Result.success(legalCaseService.queryCases(dto, userId, isAdmin));
     }
 
     /**
-     * 获取案例详情
-     * GET /api/cases/{id}
+     * 获取案例详情，同时返回收藏状态、摘要及评分信息。
      */
     @GetMapping("/{id}")
     public Result<CaseDetailVO> getCaseDetail(@PathVariable Long id) {
         Long userId = UserContext.getUserId();
-        userId = 1L;
         return Result.success(legalCaseService.getCaseDetail(id, userId));
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // 管理员 - 案例维护
+    // ─────────────────────────────────────────────────────────────────────────
+
     /**
-     * 新增/更新案例（管理员）
-     * POST /api/cases
+     * 新增案例（管理员）。
+     * <p>保存后自动在后台异步触发完整的AI处理流程（翻译 → 摘要 → 评分）。
      */
     @PostMapping
     public Result<Long> saveCase(@Valid @RequestBody CaseSaveDTO dto) {
@@ -56,39 +82,127 @@ public class LegalCaseController {
     }
 
     /**
-     * 触发翻译（英→中）
-     * POST /api/cases/{id}/translate
+     * 修正案例内容（管理员）。
+     * <p>用于对AI处理结果进行人工校正，仅覆盖请求体中非 null 的字段，
+     * 不会重置 ai_status，也不会重新触发AI处理。
+     */
+    @PutMapping("/{id}")
+    public Result<Void> updateCase(@PathVariable Long id,
+                                   @RequestBody CaseUpdateDTO dto) {
+        requireAdmin();
+        legalCaseService.updateCase(id, dto);
+        return Result.success("案例内容已更新");
+    }
+
+    /**
+     * 逻辑删除案例（管理员）。
+     * <p>将 is_deleted 置为 1，案例对普通用户不可见，可通过恢复接口撤销。
+     */
+    @DeleteMapping("/{id}")
+    public Result<Void> softDeleteCase(@PathVariable Long id) {
+        requireAdmin();
+        legalCaseService.softDeleteCase(id);
+        return Result.success("案例已删除");
+    }
+
+    /**
+     * 恢复逻辑删除的案例（管理员）。
+     * <p>将 is_deleted 重新置为 0，案例恢复对普通用户可见。
+     */
+    @PutMapping("/{id}/restore")
+    public Result<Void> restoreCase(@PathVariable Long id) {
+        requireAdmin();
+        legalCaseService.restoreCase(id);
+        return Result.success("案例已恢复");
+    }
+
+    /**
+     * 物理删除案例（管理员）。
+     * <p>从数据库中彻底移除记录，操作不可逆，请谨慎使用。
+     */
+    @DeleteMapping("/{id}/permanent")
+    public Result<Void> hardDeleteCase(@PathVariable Long id) {
+        requireAdmin();
+        legalCaseService.hardDeleteCase(id);
+        return Result.success("案例已永久删除");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 管理员 - 手动触发AI处理
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * 手动触发翻译（管理员）。
+     * <p>对指定案例的英文原文执行英→中翻译，结果写入 content_zh 字段。
      */
     @PostMapping("/{id}/translate")
     public Result<String> triggerTranslation(@PathVariable Long id) {
-//        requireLogin();
+        requireAdmin();
         String result = legalCaseService.triggerTranslation(id);
         return Result.success("翻译完成", result);
     }
 
     /**
-     * 触发摘要提取
-     * POST /api/cases/{id}/summary
+     * 手动触发摘要提取（管理员）。
+     * <p>对指定案例调用AI提取争议焦点、判决结果及核心摘要。
      */
     @PostMapping("/{id}/summary")
     public Result<CaseSummaryVO> triggerSummary(@PathVariable Long id) {
-//        requireLogin();
+        requireAdmin();
         return Result.success(legalCaseService.triggerSummary(id));
     }
 
     /**
-     * 触发重要性评分
-     * POST /api/cases/{id}/score
+     * 手动触发重要性评分（管理员）。
+     * <p>对指定案例调用AI计算重要性评分（0-100）及评分理由。
      */
     @PostMapping("/{id}/score")
     public Result<CaseScoreVO> triggerScore(@PathVariable Long id) {
-//        requireLogin();
+        requireAdmin();
         return Result.success(legalCaseService.triggerScore(id));
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // 管理员 - AI处理记录查询
+    // ─────────────────────────────────────────────────────────────────────────
+
     /**
-     * 收藏/取消收藏案例
-     * POST /api/cases/{id}/favorite
+     * 获取案例的所有翻译记录（管理员）。
+     * <p>按创建时间倒序返回，可用于查看历次翻译的状态、耗时及失败原因。
+     */
+    @GetMapping("/{id}/translations")
+    public Result<List<CaseTranslationRecordVO>> getTranslationRecords(@PathVariable Long id) {
+        requireAdmin();
+        return Result.success(legalCaseService.getTranslationRecords(id));
+    }
+
+    /**
+     * 获取案例的所有摘要记录（管理员）。
+     * <p>按创建时间倒序返回，可用于查看历次摘要提取的结果及失败原因。
+     */
+    @GetMapping("/{id}/summaries")
+    public Result<List<CaseSummaryRecordVO>> getSummaryRecords(@PathVariable Long id) {
+        requireAdmin();
+        return Result.success(legalCaseService.getSummaryRecords(id));
+    }
+
+    /**
+     * 获取案例的所有评分记录（管理员）。
+     * <p>按创建时间倒序返回，可用于查看历次评分的各维度得分及失败原因。
+     */
+    @GetMapping("/{id}/scores")
+    public Result<List<CaseScoreRecordVO>> getScoreRecords(@PathVariable Long id) {
+        requireAdmin();
+        return Result.success(legalCaseService.getScoreRecords(id));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 登录用户 - 收藏
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * 收藏或取消收藏案例（登录用户）。
+     * <p>已收藏时调用则取消收藏，未收藏时调用则添加收藏，返回操作后的收藏状态。
      */
     @PostMapping("/{id}/favorite")
     public Result<Boolean> toggleFavorite(@PathVariable Long id) {
@@ -98,8 +212,7 @@ public class LegalCaseController {
     }
 
     /**
-     * 获取我的收藏列表
-     * GET /api/cases/favorites
+     * 获取我的收藏列表（登录用户）。
      */
     @GetMapping("/favorites")
     public Result<IPage<CaseListVO>> getFavorites(
@@ -109,6 +222,11 @@ public class LegalCaseController {
         return Result.success(legalCaseService.getFavorites(userId, pageNum, pageSize));
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // 权限校验工具方法
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** 要求用户已登录，返回当前用户ID。未登录则抛出 401。 */
     private Long requireLogin() {
         Long userId = UserContext.getUserId();
         if (userId == null) {
@@ -117,10 +235,10 @@ public class LegalCaseController {
         return userId;
     }
 
+    /** 要求当前用户为管理员。未登录抛出 401，非管理员抛出 403。 */
     private void requireAdmin() {
-        Long userId = requireLogin();
-        // 实际项目可从数据库查角色，此处简化
-        if (userId == null) {
+        requireLogin();
+        if (!UserContext.isAdmin()) {
             throw new BusinessException(ResultCode.FORBIDDEN);
         }
     }

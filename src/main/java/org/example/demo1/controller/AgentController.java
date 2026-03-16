@@ -10,7 +10,7 @@ import org.example.demo1.vo.CaseSummaryVO;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * Agent 直接调用接口（可用于测试和前端直接请求）
+ * Agent 直接调用接口（用于测试和前端直接请求）
  */
 @RestController
 @RequestMapping("/agent")
