@@ -35,6 +35,7 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
     private final CaseSummaryMapper caseSummaryMapper;
     private final CaseScoreMapper caseScoreMapper;
     private final SearchHistoryMapper searchHistoryMapper;
+    private final BrowseHistoryMapper browseHistoryMapper;
 
     @Override
     public IPage<CaseListVO> queryCases(CaseQueryDTO dto, Long userId, boolean isAdmin) {
@@ -67,6 +68,23 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
 
         CaseDetailVO vo = new CaseDetailVO();
         BeanUtils.copyProperties(legalCase, vo);
+
+        // 登录用户：记录浏览历史（已存在则更新时间，不存在则插入）
+        if (userId != null) {
+            BrowseHistory existing = browseHistoryMapper.selectOne(
+                    new LambdaQueryWrapper<BrowseHistory>()
+                            .eq(BrowseHistory::getUserId, userId)
+                            .eq(BrowseHistory::getCaseId, caseId));
+            if (existing != null) {
+                existing.setCreatedAt(java.time.LocalDateTime.now());
+                browseHistoryMapper.updateById(existing);
+            } else {
+                BrowseHistory browseHistory = new BrowseHistory();
+                browseHistory.setUserId(userId);
+                browseHistory.setCaseId(caseId);
+                browseHistoryMapper.insert(browseHistory);
+            }
+        }
 
         // 是否收藏
         if (userId != null) {
@@ -162,21 +180,21 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
     }
 
     @Override
-    public String triggerTranslation(Long caseId) {
+    public void triggerTranslation(Long caseId) {
         checkCaseExists(caseId);
-        return caseAgentService.triggerTranslation(caseId);
+        caseAgentService.triggerTranslation(caseId);
     }
 
     @Override
-    public CaseSummaryVO triggerSummary(Long caseId) {
+    public void triggerSummary(Long caseId) {
         checkCaseExists(caseId);
-        return caseAgentService.triggerSummary(caseId);
+        caseAgentService.triggerSummary(caseId);
     }
 
     @Override
-    public CaseScoreVO triggerScore(Long caseId) {
+    public void triggerScore(Long caseId) {
         checkCaseExists(caseId);
-        return caseAgentService.triggerScore(caseId);
+        caseAgentService.triggerScore(caseId);
     }
 
     @Override
@@ -303,6 +321,21 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
         CaseScoreRecordVO vo = new CaseScoreRecordVO();
         BeanUtils.copyProperties(Objects.requireNonNull(e), vo);
         return vo;
+    }
+
+    @Override
+    public IPage<BrowseHistoryVO> getBrowseHistory(Long userId, Integer pageNum, Integer pageSize) {
+        Page<BrowseHistoryVO> page = new Page<>(pageNum, pageSize);
+        return browseHistoryMapper.selectBrowseHistoryPage(page, userId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteBrowseHistory(Long userId, List<Long> ids) {
+        browseHistoryMapper.delete(
+                new LambdaQueryWrapper<BrowseHistory>()
+                        .eq(BrowseHistory::getUserId, userId)
+                        .in(BrowseHistory::getId, ids));
     }
 
     private void checkCaseExists(Long caseId) {

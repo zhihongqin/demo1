@@ -11,12 +11,11 @@ import org.example.demo1.dto.CaseSaveDTO;
 import org.example.demo1.dto.CaseUpdateDTO;
 import org.example.demo1.service.LegalCaseService;
 import org.example.demo1.util.UserContext;
+import org.example.demo1.vo.BrowseHistoryVO;
 import org.example.demo1.vo.CaseDetailVO;
 import org.example.demo1.vo.CaseListVO;
 import org.example.demo1.vo.CaseScoreRecordVO;
-import org.example.demo1.vo.CaseScoreVO;
 import org.example.demo1.vo.CaseSummaryRecordVO;
-import org.example.demo1.vo.CaseSummaryVO;
 import org.example.demo1.vo.CaseTranslationRecordVO;
 
 import java.util.List;
@@ -133,33 +132,35 @@ public class LegalCaseController {
 
     /**
      * 手动触发翻译（管理员）。
-     * <p>对指定案例的英文原文执行英→中翻译，结果写入 content_zh 字段。
+     * <p>异步执行，立即返回。可通过 GET /{id}/translations 查询处理进度。
      */
     @PostMapping("/{id}/translate")
-    public Result<String> triggerTranslation(@PathVariable Long id) {
+    public Result<Void> triggerTranslation(@PathVariable Long id) {
         requireAdmin();
-        String result = legalCaseService.triggerTranslation(id);
-        return Result.success("翻译完成", result);
+        legalCaseService.triggerTranslation(id);
+        return Result.success("翻译任务已提交，正在后台处理");
     }
 
     /**
      * 手动触发摘要提取（管理员）。
-     * <p>对指定案例调用AI提取争议焦点、判决结果及核心摘要。
+     * <p>异步执行，立即返回。可通过 GET /{id}/summaries 查询处理进度。
      */
     @PostMapping("/{id}/summary")
-    public Result<CaseSummaryVO> triggerSummary(@PathVariable Long id) {
+    public Result<Void> triggerSummary(@PathVariable Long id) {
         requireAdmin();
-        return Result.success(legalCaseService.triggerSummary(id));
+        legalCaseService.triggerSummary(id);
+        return Result.success("摘要提取任务已提交，正在后台处理");
     }
 
     /**
      * 手动触发重要性评分（管理员）。
-     * <p>对指定案例调用AI计算重要性评分（0-100）及评分理由。
+     * <p>异步执行，立即返回。可通过 GET /{id}/scores 查询处理进度。
      */
     @PostMapping("/{id}/score")
-    public Result<CaseScoreVO> triggerScore(@PathVariable Long id) {
+    public Result<Void> triggerScore(@PathVariable Long id) {
         requireAdmin();
-        return Result.success(legalCaseService.triggerScore(id));
+        legalCaseService.triggerScore(id);
+        return Result.success("评分任务已提交，正在后台处理");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -220,6 +221,33 @@ public class LegalCaseController {
             @RequestParam(defaultValue = "10") Integer pageSize) {
         Long userId = requireLogin();
         return Result.success(legalCaseService.getFavorites(userId, pageNum, pageSize));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 登录用户 - 浏览记录
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * 获取我的浏览记录（登录用户）。
+     * <p>按浏览时间倒序分页返回，每次查看案例详情时自动记录/更新浏览时间。
+     */
+    @GetMapping("/browse-history")
+    public Result<IPage<BrowseHistoryVO>> getBrowseHistory(
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "10") Integer pageSize) {
+        Long userId = requireLogin();
+        return Result.success(legalCaseService.getBrowseHistory(userId, pageNum, pageSize));
+    }
+
+    /**
+     * 删除浏览记录（登录用户，支持批量）。
+     * <p>请求体传入要删除的浏览记录 ID 列表，只能删除当前用户自己的记录。
+     */
+    @DeleteMapping("/browse-history")
+    public Result<Void> deleteBrowseHistory(@RequestBody List<Long> ids) {
+        Long userId = requireLogin();
+        legalCaseService.deleteBrowseHistory(userId, ids);
+        return Result.success("浏览记录已删除");
     }
 
     // ─────────────────────────────────────────────────────────────────────────

@@ -120,6 +120,17 @@ CREATE TABLE IF NOT EXISTS `user_favorite` (
     INDEX idx_user_id (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户收藏表';
 
+-- 浏览记录表
+CREATE TABLE IF NOT EXISTS `browse_history` (
+    `id`         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id`    BIGINT NOT NULL COMMENT '用户ID',
+    `case_id`    BIGINT NOT NULL COMMENT '案例ID',
+    `created_at` DATETIME COMMENT '浏览时间',
+    UNIQUE KEY uk_user_case (`user_id`, `case_id`),
+    INDEX idx_user_id (`user_id`),
+    INDEX idx_case_id (`case_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户浏览记录表';
+
 -- 搜索历史表
 CREATE TABLE IF NOT EXISTS `search_history` (
     `id`           BIGINT AUTO_INCREMENT PRIMARY KEY,

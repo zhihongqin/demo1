@@ -78,31 +78,37 @@ public class CaseAgentService {
     }
 
     /**
-     * 单独触发翻译并保存
+     * 异步单独触发翻译并保存
      */
+    @Async("aiTaskExecutor")
     @Transactional
-    public String triggerTranslation(Long caseId) {
+    public void triggerTranslation(Long caseId) {
+        log.info("开始异步翻译: caseId={}", caseId);
         LegalCase legalCase = legalCaseMapper.selectById(caseId);
-        return doTranslation(legalCase);
+        doTranslation(legalCase);
     }
 
     /**
-     * 单独触发摘要提取并保存
+     * 异步单独触发摘要提取并保存
      */
+    @Async("aiTaskExecutor")
     @Transactional
-    public CaseSummaryVO triggerSummary(Long caseId) {
+    public void triggerSummary(Long caseId) {
+        log.info("开始异步摘要提取: caseId={}", caseId);
         LegalCase legalCase = legalCaseMapper.selectById(caseId);
         String content = legalCase.getContentZh() != null
                 ? legalCase.getContentZh()
                 : legalCase.getContentEn();
-        return doSummary(legalCase, content);
+        doSummary(legalCase, content);
     }
 
     /**
-     * 单独触发评分并保存
+     * 异步单独触发评分并保存
      */
+    @Async("aiTaskExecutor")
     @Transactional
-    public CaseScoreVO triggerScore(Long caseId) {
+    public void triggerScore(Long caseId) {
+        log.info("开始异步评分: caseId={}", caseId);
         LegalCase legalCase = legalCaseMapper.selectById(caseId);
         CaseSummaryVO summaryVO = null;
         CaseSummary existing = caseSummaryMapper.selectOne(
@@ -114,7 +120,7 @@ public class CaseAgentService {
             summaryVO.setJudgmentResult(existing.getJudgmentResult());
         }
         String contentForScore = buildScoreContent(legalCase, summaryVO);
-        return doScore(legalCase, contentForScore);
+        doScore(legalCase, contentForScore);
     }
 
     // ==================== 私有处理方法 ====================

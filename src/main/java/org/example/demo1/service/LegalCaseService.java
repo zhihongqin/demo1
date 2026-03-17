@@ -6,12 +6,11 @@ import org.example.demo1.dto.CaseQueryDTO;
 import org.example.demo1.dto.CaseSaveDTO;
 import org.example.demo1.dto.CaseUpdateDTO;
 import org.example.demo1.entity.LegalCase;
+import org.example.demo1.vo.BrowseHistoryVO;
 import org.example.demo1.vo.CaseDetailVO;
 import org.example.demo1.vo.CaseListVO;
 import org.example.demo1.vo.CaseScoreRecordVO;
-import org.example.demo1.vo.CaseScoreVO;
 import org.example.demo1.vo.CaseSummaryRecordVO;
-import org.example.demo1.vo.CaseSummaryVO;
 import org.example.demo1.vo.CaseTranslationRecordVO;
 
 import java.util.List;
@@ -41,19 +40,19 @@ public interface LegalCaseService extends IService<LegalCase> {
     void updateCase(Long caseId, CaseUpdateDTO dto);
 
     /**
-     * 触发翻译
+     * 异步触发翻译（立即返回，后台执行）
      */
-    String triggerTranslation(Long caseId);
+    void triggerTranslation(Long caseId);
 
     /**
-     * 触发摘要提取
+     * 异步触发摘要提取（立即返回，后台执行）
      */
-    CaseSummaryVO triggerSummary(Long caseId);
+    void triggerSummary(Long caseId);
 
     /**
-     * 触发重要性评分
+     * 异步触发重要性评分（立即返回，后台执行）
      */
-    CaseScoreVO triggerScore(Long caseId);
+    void triggerScore(Long caseId);
 
     /**
      * 逻辑删除案例（is_deleted = 1）
@@ -94,4 +93,14 @@ public interface LegalCaseService extends IService<LegalCase> {
      * 获取用户收藏列表
      */
     IPage<CaseListVO> getFavorites(Long userId, Integer pageNum, Integer pageSize);
+
+    /**
+     * 分页查询用户浏览记录
+     */
+    IPage<BrowseHistoryVO> getBrowseHistory(Long userId, Integer pageNum, Integer pageSize);
+
+    /**
+     * 删除浏览记录（支持批量）
+     */
+    void deleteBrowseHistory(Long userId, List<Long> ids);
 }
