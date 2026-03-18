@@ -142,6 +142,17 @@ public class LegalCaseController {
     }
 
     /**
+     * 手动触发字段补全（管理员）。
+     * <p>异步执行，立即返回。提取案件类型、关键词、法律条文、国家/地区、法院等字段。
+     */
+    @PostMapping("/{id}/enrich")
+    public Result<Void> triggerEnrich(@PathVariable Long id) {
+        requireAdmin();
+        legalCaseService.triggerEnrich(id);
+        return Result.success("字段补全任务已提交，正在后台处理");
+    }
+
+    /**
      * 手动触发摘要提取（管理员）。
      * <p>异步执行，立即返回。可通过 GET /{id}/summaries 查询处理进度。
      */

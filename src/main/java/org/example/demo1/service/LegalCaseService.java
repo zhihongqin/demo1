@@ -45,6 +45,12 @@ public interface LegalCaseService extends IService<LegalCase> {
     void triggerTranslation(Long caseId);
 
     /**
+     * 异步触发字段补全（立即返回，后台执行）
+     * 提取：案件类型、关键词、法律条文、国家/地区、法院
+     */
+    void triggerEnrich(Long caseId);
+
+    /**
      * 异步触发摘要提取（立即返回，后台执行）
      */
     void triggerSummary(Long caseId);

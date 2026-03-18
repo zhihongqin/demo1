@@ -86,6 +86,16 @@ public class UserController {
     // ─── 管理员用户管理接口 ───────────────────────────────────────────────
 
     /**
+     * 获取系统用户总数
+     * GET /api/user/admin/count
+     */
+    @GetMapping("/admin/count")
+    public Result<Long> getUserCount() {
+        requireAdmin();
+        return Result.success(userService.getUserCount());
+    }
+
+    /**
      * 分页查询用户列表
      * GET /api/user/admin/list?page=1&pageSize=20&keyword=xxx
      */

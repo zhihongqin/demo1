@@ -97,22 +97,26 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
             vo.setIsFavorited(false);
         }
 
-        // 摘要信息
+        // 摘要信息（取最新一条已完成的记录）
         CaseSummary caseSummary = caseSummaryMapper.selectOne(
                 new LambdaQueryWrapper<CaseSummary>()
                         .eq(CaseSummary::getCaseId, caseId)
-                        .eq(CaseSummary::getStatus, 2));
+                        .eq(CaseSummary::getStatus, 2)
+                        .orderByDesc(CaseSummary::getId)
+                        .last("LIMIT 1"));
         if (caseSummary != null) {
             CaseSummaryVO summaryVO = new CaseSummaryVO();
             BeanUtils.copyProperties(caseSummary, summaryVO);
             vo.setSummary(summaryVO);
         }
 
-        // 评分信息
+        // 评分信息（取最新一条已完成的记录）
         CaseScore caseScore = caseScoreMapper.selectOne(
                 new LambdaQueryWrapper<CaseScore>()
                         .eq(CaseScore::getCaseId, caseId)
-                        .eq(CaseScore::getStatus, 2));
+                        .eq(CaseScore::getStatus, 2)
+                        .orderByDesc(CaseScore::getId)
+                        .last("LIMIT 1"));
         if (caseScore != null) {
             CaseScoreVO scoreVO = new CaseScoreVO();
             BeanUtils.copyProperties(caseScore, scoreVO);
@@ -183,6 +187,12 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
     public void triggerTranslation(Long caseId) {
         checkCaseExists(caseId);
         caseAgentService.triggerTranslation(caseId);
+    }
+
+    @Override
+    public void triggerEnrich(Long caseId) {
+        checkCaseExists(caseId);
+        caseAgentService.triggerEnrich(caseId);
     }
 
     @Override

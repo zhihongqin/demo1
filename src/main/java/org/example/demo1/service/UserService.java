@@ -75,4 +75,9 @@ public interface UserService extends IService<User> {
      * @param userId 目标用户ID
      */
     void deleteUser(Long userId);
+
+    /**
+     * 获取系统用户总数
+     */
+    long getUserCount();
 }

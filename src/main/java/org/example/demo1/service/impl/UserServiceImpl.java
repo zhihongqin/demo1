@@ -229,6 +229,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         log.info("管理员删除用户: userId={}", userId);
     }
 
+    @Override
+    public long getUserCount() {
+        return count();
+    }
+
     private UserVO toVO(User user) {
         UserVO vo = new UserVO();
         vo.setId(user.getId());

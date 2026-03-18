@@ -28,7 +28,8 @@ public enum ResultCode {
     AGENT_CALL_FAIL(3001, "AI服务调用失败"),
     TRANSLATION_FAIL(3002, "翻译失败"),
     SUMMARY_FAIL(3003, "摘要提取失败"),
-    SCORE_FAIL(3004, "重要性评分失败");
+    SCORE_FAIL(3004, "重要性评分失败"),
+    ENRICH_FAIL(3005, "案例字段提取失败");
 
     private final Integer code;
     private final String message;

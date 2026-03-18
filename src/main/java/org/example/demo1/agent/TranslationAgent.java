@@ -35,6 +35,40 @@ public class TranslationAgent {
             5. 只输出翻译结果，不添加任何额外说明
             """;
 
+    private static final String TITLE_SYSTEM_PROMPT = """
+            你是一名专业的法律翻译专家。请将用户提供的英文法律案例标题准确翻译为中文。
+            要求：
+            1. 保持法律术语的准确性和专业性
+            2. 对当事人姓名保留英文并在括号内注明（如需要）
+            3. 只输出翻译后的中文标题，不添加任何额外说明或标点
+            """;
+
+    /**
+     * 翻译案例标题（英文→中文）
+     *
+     * @param englishTitle 英文标题
+     * @return 中文标题
+     */
+    public String translateTitle(String englishTitle) {
+        if (englishTitle == null || englishTitle.isBlank()) {
+            return "";
+        }
+        log.info("开始翻译案例标题: {}", englishTitle);
+        try {
+            String result = fastGptClient.chat(apiKey, TITLE_SYSTEM_PROMPT, englishTitle);
+            if (result == null || result.isBlank()) {
+                log.warn("标题翻译结果为空，原标题: {}", englishTitle);
+                return "";
+            }
+            String title = result.trim();
+            log.info("标题翻译完成: {}", title);
+            return title;
+        } catch (Exception e) {
+            log.error("标题翻译失败，原标题: {}", englishTitle, e);
+            throw e;
+        }
+    }
+
     /**
      * 将英文法律案例内容翻译为中文
      * 内容超过 MAX_CHUNK_SIZE 时自动分段翻译后拼接
