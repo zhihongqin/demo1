@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 import org.example.demo1.entity.LegalCase;
 import org.example.demo1.vo.CaseListVO;
@@ -23,6 +24,12 @@ public interface LegalCaseMapper extends BaseMapper<LegalCase> {
                                   @Param("country") String country,
                                   @Param("userId") Long userId,
                                   @Param("isAdmin") boolean isAdmin);
+
+    /**
+     * 按 ID 查询案例，忽略逻辑删除状态（管理员专用）
+     */
+    @Select("SELECT * FROM legal_case WHERE id = #{id}")
+    LegalCase selectByIdIgnoreDeleted(@Param("id") Long id);
 
     /**
      * 恢复逻辑删除（绕过 @TableLogic，直接将 is_deleted 置为 0）

@@ -29,4 +29,7 @@ public class CaseListVO {
 
     /** 当前用户是否已收藏 */
     private Boolean isFavorited;
+
+    /** 是否已逻辑删除：0-正常，1-已删除 */
+    private Integer isDeleted;
 }

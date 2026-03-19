@@ -7,6 +7,7 @@ import org.example.demo1.crawler.CaseCrawlerService;
 import org.example.demo1.crawler.PythonCrawlerService;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -40,20 +41,17 @@ public class CrawlerController {
     }
 
     /**
-     * 针对单个关键词采集（同步，用于测试或补采）
+     * 针对单个关键词采集（异步，立即返回，后台执行）
      * POST /api/admin/crawler/query?keyword=Huawei
      */
     @PostMapping("/query")
-    public Result<Map<String, Object>> crawlByKeyword(@RequestParam String keyword) {
+    public Result<String> crawlByKeyword(@RequestParam String keyword) {
         if (crawlerService.isRunning()) {
             return Result.fail(400, "采集任务正在运行中，请稍后再试");
         }
         log.info("[手动采集] 关键词: {}", keyword);
-        int saved = crawlerService.crawlByQuery(keyword);
-        return Result.success(Map.of(
-                "keyword", keyword,
-                "savedCount", saved
-        ));
+        crawlerService.crawlByQueryAsync(keyword);
+        return Result.success("关键词「" + keyword + "」采集任务已启动（异步执行中）");
     }
 
     /**
@@ -66,6 +64,59 @@ public class CrawlerController {
                 "running", crawlerService.isRunning(),
                 "message", crawlerService.isRunning() ? "采集任务运行中" : "采集任务空闲"
         ));
+    }
+
+    // ─── 关键词管理 ───────────────────────────────────────────────────────
+
+    /**
+     * 获取当前全量采集关键词列表
+     * GET /api/admin/crawler/keywords
+     */
+    @GetMapping("/keywords")
+    public Result<List<String>> getKeywords() {
+        return Result.success(crawlerService.getSearchQueries());
+    }
+
+    /**
+     * 新增单个关键词
+     * POST /api/admin/crawler/keywords?keyword=xxx
+     */
+    @PostMapping("/keywords")
+    public Result<List<String>> addKeyword(@RequestParam String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return Result.fail(400, "关键词不能为空");
+        }
+        boolean added = crawlerService.addSearchQuery(keyword);
+        if (!added) {
+            return Result.fail(400, "关键词「" + keyword.trim() + "」已存在");
+        }
+        return Result.success("关键词已添加", crawlerService.getSearchQueries());
+    }
+
+    /**
+     * 删除单个关键词
+     * DELETE /api/admin/crawler/keywords?keyword=xxx
+     */
+    @DeleteMapping("/keywords")
+    public Result<List<String>> removeKeyword(@RequestParam String keyword) {
+        boolean removed = crawlerService.removeSearchQuery(keyword);
+        if (!removed) {
+            return Result.fail(400, "关键词「" + keyword.trim() + "」不存在");
+        }
+        return Result.success("关键词已删除", crawlerService.getSearchQueries());
+    }
+
+    /**
+     * 全量替换关键词列表
+     * PUT /api/admin/crawler/keywords
+     */
+    @PutMapping("/keywords")
+    public Result<List<String>> setKeywords(@RequestBody List<String> keywords) {
+        if (keywords == null || keywords.isEmpty()) {
+            return Result.fail(400, "关键词列表不能为空");
+        }
+        crawlerService.setSearchQueries(keywords);
+        return Result.success("关键词列表已更新", crawlerService.getSearchQueries());
     }
 
     // ─── Python 爬虫进程管理 ──────────────────────────────────────────────

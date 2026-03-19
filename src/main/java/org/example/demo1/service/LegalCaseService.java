@@ -25,8 +25,9 @@ public interface LegalCaseService extends IService<LegalCase> {
 
     /**
      * 获取案例详情
+     * isAdmin=true 时可查看已逻辑删除的案例
      */
-    CaseDetailVO getCaseDetail(Long caseId, Long userId);
+    CaseDetailVO getCaseDetail(Long caseId, Long userId, boolean isAdmin);
 
     /**
      * 保存/更新案例（触发AI处理）
@@ -59,6 +60,12 @@ public interface LegalCaseService extends IService<LegalCase> {
      * 异步触发重要性评分（立即返回，后台执行）
      */
     void triggerScore(Long caseId);
+
+    /**
+     * 手动将案例 AI 处理状态标记为已完成（ai_status = 2）
+     * 用于 AI 处理卡住或失败后的人工干预
+     */
+    void markAiCompleted(Long caseId);
 
     /**
      * 逻辑删除案例（is_deleted = 1）

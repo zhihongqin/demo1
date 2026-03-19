@@ -23,6 +23,7 @@
         <result column="favorite_count" property="favoriteCount"/>
         <result column="created_at" property="createdAt"/>
         <result column="is_favorited" property="isFavorited"/>
+        <result column="is_deleted" property="isDeleted"/>
     </resultMap>
 
     <select id="searchCases" resultMap="CaseListVOMap">
@@ -45,29 +46,35 @@
             lc.view_count,
             lc.favorite_count,
             lc.created_at,
+            lc.is_deleted,
             CASE WHEN uf.id IS NOT NULL THEN 1 ELSE 0 END AS is_favorited
         FROM legal_case lc
         LEFT JOIN user_favorite uf ON uf.case_id = lc.id
             AND uf.user_id = #{userId}
-        WHERE lc.is_deleted = 0
-        <if test="!isAdmin">
-            AND lc.ai_status = 2
-        </if>
-        <if test="keyword != null and keyword != ''">
-            AND (
-                lc.title_zh LIKE CONCAT('%', #{keyword}, '%')
-                OR lc.title_en LIKE CONCAT('%', #{keyword}, '%')
-                OR lc.case_reason LIKE CONCAT('%', #{keyword}, '%')
-                OR lc.keywords LIKE CONCAT('%', #{keyword}, '%')
-                OR lc.summary_zh LIKE CONCAT('%', #{keyword}, '%')
-            )
-        </if>
-        <if test="caseType != null">
-            AND lc.case_type = #{caseType}
-        </if>
-        <if test="country != null and country != ''">
-            AND lc.country = #{country}
-        </if>
+        <where>
+            <if test="isAdmin">
+                <!-- 管理员可见全部记录（含已删除），无需过滤 is_deleted -->
+            </if>
+            <if test="!isAdmin">
+                lc.is_deleted = 0
+                AND lc.ai_status = 2
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (
+                    lc.title_zh LIKE CONCAT('%', #{keyword}, '%')
+                    OR lc.title_en LIKE CONCAT('%', #{keyword}, '%')
+                    OR lc.case_reason LIKE CONCAT('%', #{keyword}, '%')
+                    OR lc.keywords LIKE CONCAT('%', #{keyword}, '%')
+                    OR lc.summary_zh LIKE CONCAT('%', #{keyword}, '%')
+                )
+            </if>
+            <if test="caseType != null">
+                AND lc.case_type = #{caseType}
+            </if>
+            <if test="country != null and country != ''">
+                AND lc.country = #{country}
+            </if>
+        </where>
         ORDER BY lc.created_at DESC
     </select>
 

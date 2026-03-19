@@ -38,7 +38,7 @@ public class FastGptClient {
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
     /**
-     * 调用 FastGPT Chat 接口
+     * 调用 FastGPT Chat 接口（单次对话）
      *
      * @param apiKey  应用的 API Key
      * @param prompt  系统提示词
@@ -46,6 +46,20 @@ public class FastGptClient {
      * @return AI 返回的文本内容
      */
     public String chat(String apiKey, String prompt, String content) {
+        return chat(apiKey, prompt, content, null);
+    }
+
+    /**
+     * 调用 FastGPT Chat 接口（支持会话记忆）
+     * 传入相同的 chatId 可让 FastGPT 关联同一会话，AI 将记住历史对话内容
+     *
+     * @param apiKey  应用的 API Key
+     * @param prompt  系统提示词
+     * @param content 用户输入内容
+     * @param chatId  会话 ID，同一篇文书的分段请求应使用相同的 chatId；为 null 时退化为单次对话
+     * @return AI 返回的文本内容
+     */
+    public String chat(String apiKey, String prompt, String content, String chatId) {
         OkHttpClient client = new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(timeout, TimeUnit.SECONDS)
@@ -56,6 +70,10 @@ public class FastGptClient {
             ObjectNode requestBody = objectMapper.createObjectNode();
             requestBody.put("model", model);
             requestBody.put("stream", false);
+
+            if (chatId != null && !chatId.isBlank()) {
+                requestBody.put("chatId", chatId);
+            }
 
             ArrayNode messages = objectMapper.createArrayNode();
 
@@ -81,7 +99,7 @@ public class FastGptClient {
                     .post(RequestBody.create(objectMapper.writeValueAsString(requestBody), JSON))
                     .build();
 
-            log.debug("FastGPT 请求: url={}", url);
+            log.debug("FastGPT 请求: url={}, chatId={}", url, chatId);
 
             try (Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful()) {

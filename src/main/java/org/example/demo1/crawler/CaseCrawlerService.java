@@ -15,7 +15,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -28,13 +31,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class CaseCrawlerService {
 
     /**
-     * 轮流搜索的涉华关键词
-     * 多个关键词覆盖不同角度，避免遗漏
+     * 轮流搜索的涉华关键词（运行时可动态增删，使用线程安全列表）
      */
-    private static final List<String> SEARCH_QUERIES = List.of(
+    private final CopyOnWriteArrayList<String> searchQueries = new CopyOnWriteArrayList<>(List.of(
             "China",
             "Chinese",
-            "PRC",
             "Huawei",
             "ZTE",
             "Alibaba",
@@ -44,7 +45,7 @@ public class CaseCrawlerService {
             "Chinese company",
             "Chinese citizen",
             "People's Republic of China"
-    );
+    ));
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -75,10 +76,10 @@ public class CaseCrawlerService {
             log.warn("[采集] 任务已在运行中，跳过本次触发");
             return;
         }
-        log.info("[采集] 开始全量采集，共 {} 个搜索词，每词最多 {} 页", SEARCH_QUERIES.size(), maxPages);
+        log.info("[采集] 开始全量采集，共 {} 个搜索词，每词最多 {} 页", searchQueries.size(), maxPages);
         int totalSaved = 0;
         try {
-            for (String query : SEARCH_QUERIES) {
+            for (String query : searchQueries) {
                 int saved = crawlByQuery(query);
                 totalSaved += saved;
                 sleep(2000);
@@ -90,7 +91,28 @@ public class CaseCrawlerService {
     }
 
     /**
-     * 针对单个关键词采集
+     * 针对单个关键词异步采集（立即返回，后台执行）
+     * 与 crawlAll 共享 running 状态标志，防止并发冲突
+     *
+     * @param query 搜索关键词
+     */
+    @Async
+    public void crawlByQueryAsync(String query) {
+        if (!running.compareAndSet(false, true)) {
+            log.warn("[采集] 任务已在运行中，跳过关键词 '{}' 的采集", query);
+            return;
+        }
+        log.info("[手动采集] 异步开始，关键词: '{}'", query);
+        try {
+            int saved = crawlByQuery(query);
+            log.info("[手动采集] 关键词 '{}' 采集完成，入库 {} 条", query, saved);
+        } finally {
+            running.set(false);
+        }
+    }
+
+    /**
+     * 针对单个关键词采集（同步，供内部和 crawlAll 调用）
      *
      * @param query 搜索关键词
      * @return 本次入库数量
@@ -225,5 +247,40 @@ public class CaseCrawlerService {
 
     public boolean isRunning() {
         return running.get();
+    }
+
+    /** 获取当前关键词列表（只读副本） */
+    public List<String> getSearchQueries() {
+        return Collections.unmodifiableList(new ArrayList<>(searchQueries));
+    }
+
+    /** 新增关键词（已存在则忽略） */
+    public boolean addSearchQuery(String keyword) {
+        String kw = keyword.trim();
+        if (kw.isBlank() || searchQueries.contains(kw)) {
+            return false;
+        }
+        searchQueries.add(kw);
+        log.info("[关键词] 新增: '{}'", kw);
+        return true;
+    }
+
+    /** 删除关键词 */
+    public boolean removeSearchQuery(String keyword) {
+        boolean removed = searchQueries.remove(keyword.trim());
+        if (removed) log.info("[关键词] 删除: '{}'", keyword.trim());
+        return removed;
+    }
+
+    /** 全量替换关键词列表 */
+    public void setSearchQueries(List<String> keywords) {
+        List<String> cleaned = keywords.stream()
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .distinct()
+                .toList();
+        searchQueries.clear();
+        searchQueries.addAll(cleaned);
+        log.info("[关键词] 列表已更新，共 {} 个", cleaned.size());
     }
 }

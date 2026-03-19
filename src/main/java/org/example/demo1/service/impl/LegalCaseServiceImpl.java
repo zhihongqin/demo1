@@ -56,8 +56,10 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
     }
 
     @Override
-    public CaseDetailVO getCaseDetail(Long caseId, Long userId) {
-        LegalCase legalCase = getById(caseId);
+    public CaseDetailVO getCaseDetail(Long caseId, Long userId, boolean isAdmin) {
+        LegalCase legalCase = isAdmin
+                ? baseMapper.selectByIdIgnoreDeleted(caseId)
+                : getById(caseId);
         if (legalCase == null) {
             throw new BusinessException(ResultCode.CASE_NOT_EXIST);
         }
@@ -156,7 +158,8 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
     @Override
     @Transactional
     public void updateCase(Long caseId, CaseUpdateDTO dto) {
-        LegalCase legalCase = getById(caseId);
+        // 管理员编辑时允许操作已逻辑删除的案例
+        LegalCase legalCase = baseMapper.selectByIdIgnoreDeleted(caseId);
         if (legalCase == null) {
             throw new BusinessException(ResultCode.CASE_NOT_EXIST);
         }
@@ -242,6 +245,17 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
     public IPage<CaseListVO> getFavorites(Long userId, Integer pageNum, Integer pageSize) {
         Page<CaseListVO> page = new Page<>(pageNum, pageSize);
         return baseMapper.searchCases(page, null, null, null, userId, false);
+    }
+
+    @Override
+    public void markAiCompleted(Long caseId) {
+        LegalCase legalCase = baseMapper.selectByIdIgnoreDeleted(caseId);
+        if (legalCase == null) {
+            throw new BusinessException(ResultCode.CASE_NOT_EXIST);
+        }
+        legalCase.setAiStatus(2);
+        baseMapper.updateById(legalCase);
+        log.info("案例 AI 状态手动标记为已完成: caseId={}", caseId);
     }
 
     @Override
@@ -349,7 +363,7 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
     }
 
     private void checkCaseExists(Long caseId) {
-        if (getById(caseId) == null) {
+        if (baseMapper.selectByIdIgnoreDeleted(caseId) == null) {
             throw new BusinessException(ResultCode.CASE_NOT_EXIST);
         }
     }

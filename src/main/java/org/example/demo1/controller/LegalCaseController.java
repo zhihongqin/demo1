@@ -58,11 +58,13 @@ public class LegalCaseController {
 
     /**
      * 获取案例详情，同时返回收藏状态、摘要及评分信息。
+     * 管理员可查看已逻辑删除的案例详情。
      */
     @GetMapping("/{id}")
     public Result<CaseDetailVO> getCaseDetail(@PathVariable Long id) {
         Long userId = UserContext.getUserId();
-        return Result.success(legalCaseService.getCaseDetail(id, userId));
+        boolean isAdmin = UserContext.isAdmin();
+        return Result.success(legalCaseService.getCaseDetail(id, userId, isAdmin));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -91,6 +93,18 @@ public class LegalCaseController {
         requireAdmin();
         legalCaseService.updateCase(id, dto);
         return Result.success("案例内容已更新");
+    }
+
+    /**
+     * 手动将案例 AI 处理状态标记为已完成（管理员）。
+     * <p>用于 AI 处理卡住或失败后的人工干预，将 ai_status 强制置为 2（已完成），
+     * 使案例对普通用户可见。
+     */
+    @PutMapping("/{id}/ai-complete")
+    public Result<Void> markAiCompleted(@PathVariable Long id) {
+        requireAdmin();
+        legalCaseService.markAiCompleted(id);
+        return Result.success("AI状态已标记为已完成");
     }
 
     /**

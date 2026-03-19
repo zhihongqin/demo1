@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 翻译 Agent：英文法律案例 → 中文
@@ -27,12 +28,19 @@ public class TranslationAgent {
 
     private static final String SYSTEM_PROMPT = """
             你是一名专业的法律翻译专家，擅长涉外法律文书的翻译工作。
-            请将用户提供的英文法律案例内容准确翻译为中文，要求：
-            1. 保持法律术语的准确性和专业性
-            2. 保留原文的段落结构
-            3. 对专有名词（人名、机构名）保留英文并在括号内注明中文含义
+            本次翻译任务为分段翻译一份完整的英文法律文书，你将逐段收到原文内容，请结合已翻译的历史内容保持全文一致性。
+
+            【翻译要求】
+            1. 保持法律术语的准确性和专业性，术语在全文中必须保持一致
+            2. 严格保留原文的段落结构，不合并、不拆分段落
+            3. 对专有名词（人名、机构名、案件编号）保留英文并在括号内注明中文含义
             4. 使用中国法律语境下的规范表达
-            5. 只输出翻译结果，不添加任何额外说明
+            5. 只输出翻译结果，不添加任何额外说明、注释或前缀
+
+            【格式要求】
+            1. 禁止使用任何 Markdown 格式符号，包括但不限于：#、##、###、**、*、`、>、---
+            2. 段落之间使用空行分隔，与原文保持一致
+            3. 不得添加"第X段"、"译文："等任何标注性文字
             """;
 
     private static final String TITLE_SYSTEM_PROMPT = """
@@ -87,14 +95,17 @@ public class TranslationAgent {
             return translateChunk(englishContent);
         }
 
-        // 超长内容分段翻译
+        // 超长内容分段翻译，使用同一 chatId 关联会话，让 AI 记住历史上下文
         List<String> chunks = splitIntoChunks(englishContent);
         log.info("内容过长，分为 {} 段翻译", chunks.size());
+
+        String chatId = UUID.randomUUID().toString();
+        log.info("分段翻译会话 chatId: {}", chatId);
 
         StringBuilder result = new StringBuilder();
         for (int i = 0; i < chunks.size(); i++) {
             log.info("翻译第 {}/{} 段，长度: {}", i + 1, chunks.size(), chunks.get(i).length());
-            String translated = translateChunk(chunks.get(i));
+            String translated = translateChunk(chunks.get(i), chatId);
             result.append(translated);
             if (i < chunks.size() - 1) {
                 result.append("\n\n");
@@ -107,11 +118,21 @@ public class TranslationAgent {
     }
 
     /**
-     * 翻译单个文本片段
+     * 翻译单个文本片段（单次对话，不携带会话记忆）
      */
     private String translateChunk(String chunk) {
+        return translateChunk(chunk, null);
+    }
+
+    /**
+     * 翻译单个文本片段
+     *
+     * @param chunk  待翻译的文本片段
+     * @param chatId 会话 ID，不为 null 时 FastGPT 将关联历史对话以保持上下文一致性
+     */
+    private String translateChunk(String chunk, String chatId) {
         try {
-            String result = fastGptClient.chat(apiKey, SYSTEM_PROMPT, chunk);
+            String result = fastGptClient.chat(apiKey, SYSTEM_PROMPT, chunk, chatId);
             if (result == null || result.isBlank()) {
                 log.warn("当前片段翻译结果为空，长度: {}", chunk.length());
                 return "";
