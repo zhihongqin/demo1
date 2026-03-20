@@ -9,6 +9,7 @@ import org.example.demo1.common.result.ResultCode;
 import org.example.demo1.dto.CaseQueryDTO;
 import org.example.demo1.dto.CaseSaveDTO;
 import org.example.demo1.dto.CaseUpdateDTO;
+import org.example.demo1.service.HotKeywordService;
 import org.example.demo1.service.LegalCaseService;
 import org.example.demo1.util.UserContext;
 import org.example.demo1.vo.BrowseHistoryVO;
@@ -40,6 +41,7 @@ import org.springframework.web.bind.annotation.*;
 public class LegalCaseController {
 
     private final LegalCaseService legalCaseService;
+    private final HotKeywordService hotKeywordService;
 
     // ─────────────────────────────────────────────────────────────────────────
     // 查询
@@ -54,6 +56,15 @@ public class LegalCaseController {
         Long userId = UserContext.getUserId();
         boolean isAdmin = UserContext.isAdmin();
         return Result.success(legalCaseService.queryCases(dto, userId, isAdmin));
+    }
+
+    /**
+     * 热门搜索词（公开，用于小程序搜索页等）
+     */
+    @GetMapping("/hot-keywords")
+    public Result<List<String>> hotKeywords(@RequestParam(defaultValue = "10") Integer limit) {
+        int n = limit == null ? 10 : Math.min(Math.max(limit, 1), 30);
+        return Result.success(hotKeywordService.listEnabledKeywords(n));
     }
 
     /**

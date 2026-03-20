@@ -19,6 +19,7 @@ import org.example.demo1.vo.*;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase> implements LegalCaseService {
+
+    private static final Set<String> ALLOWED_ORDER_BY = Set.of(
+            "created_at", "importance_score", "view_count", "judgment_date");
 
     private final CaseAgentService caseAgentService;
     private final UserFavoriteMapper userFavoriteMapper;
@@ -39,15 +43,19 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
 
     @Override
     public IPage<CaseListVO> queryCases(CaseQueryDTO dto, Long userId, boolean isAdmin) {
+        // 白名单校验排序字段，防止 SQL 注入（${}拼接不会自动转义）
+        String orderBy = ALLOWED_ORDER_BY.contains(dto.getOrderBy()) ? dto.getOrderBy() : "created_at";
+        String orderDir = "asc".equalsIgnoreCase(dto.getOrderDir()) ? "ASC" : "DESC";
+
         Page<CaseListVO> page = new Page<>(dto.getPageNum(), dto.getPageSize());
         IPage<CaseListVO> result = baseMapper.searchCases(page, dto.getKeyword(),
-                dto.getCaseType(), dto.getCountry(), userId, isAdmin);
+                dto.getCaseType(), dto.getCountry(), userId, isAdmin, orderBy, orderDir);
 
-        // 记录搜索历史
-        if (userId != null && dto.getKeyword() != null && !dto.getKeyword().isBlank()) {
+        // 记录搜索历史（含未登录用户，用于热门词统计）
+        if (dto.getKeyword() != null && !dto.getKeyword().isBlank()) {
             SearchHistory history = new SearchHistory();
             history.setUserId(userId);
-            history.setKeyword(dto.getKeyword());
+            history.setKeyword(dto.getKeyword().trim());
             history.setSearchType(1);
             history.setResultCount((int) result.getTotal());
             searchHistoryMapper.insert(history);
@@ -244,7 +252,7 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
     @Override
     public IPage<CaseListVO> getFavorites(Long userId, Integer pageNum, Integer pageSize) {
         Page<CaseListVO> page = new Page<>(pageNum, pageSize);
-        return baseMapper.searchCases(page, null, null, null, userId, false);
+        return baseMapper.selectFavoritesByUserId(page, userId);
     }
 
     @Override

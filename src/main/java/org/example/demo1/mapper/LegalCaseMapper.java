@@ -17,13 +17,22 @@ public interface LegalCaseMapper extends BaseMapper<LegalCase> {
     /**
      * 全文搜索案例（分页）
      * isAdmin=true 时返回所有案例，否则只返回 ai_status=2 且 is_deleted=0 的案例
+     * orderBy 须经白名单校验后传入，orderDir 只允许 asc/desc
      */
     IPage<CaseListVO> searchCases(Page<CaseListVO> page,
                                   @Param("keyword") String keyword,
                                   @Param("caseType") Integer caseType,
                                   @Param("country") String country,
                                   @Param("userId") Long userId,
-                                  @Param("isAdmin") boolean isAdmin);
+                                  @Param("isAdmin") boolean isAdmin,
+                                  @Param("orderBy") String orderBy,
+                                  @Param("orderDir") String orderDir);
+
+    /**
+     * 查询指定用户的收藏案例列表（分页），只返回该用户真正收藏过的案例
+     */
+    IPage<CaseListVO> selectFavoritesByUserId(Page<CaseListVO> page,
+                                              @Param("userId") Long userId);
 
     /**
      * 按 ID 查询案例，忽略逻辑删除状态（管理员专用）

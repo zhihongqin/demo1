@@ -26,6 +26,34 @@
         <result column="is_deleted" property="isDeleted"/>
     </resultMap>
 
+    <select id="selectFavoritesByUserId" resultMap="CaseListVOMap">
+        SELECT
+            lc.id,
+            lc.case_no,
+            lc.title_zh,
+            lc.title_en,
+            lc.case_reason,
+            lc.case_type,
+            lc.country,
+            lc.court,
+            lc.judgment_date,
+            lc.summary_zh,
+            lc.importance_score,
+            lc.keywords,
+            lc.source,
+            lc.url,
+            lc.ai_status,
+            lc.view_count,
+            lc.favorite_count,
+            lc.created_at,
+            lc.is_deleted,
+            1 AS is_favorited
+        FROM legal_case lc
+        INNER JOIN user_favorite uf ON uf.case_id = lc.id AND uf.user_id = #{userId}
+        WHERE lc.is_deleted = 0 AND lc.ai_status = 2
+        ORDER BY uf.created_at DESC
+    </select>
+
     <select id="searchCases" resultMap="CaseListVOMap">
         SELECT
             lc.id,
@@ -75,7 +103,7 @@
                 AND lc.country = #{country}
             </if>
         </where>
-        ORDER BY lc.created_at DESC
+        ORDER BY lc.${orderBy} ${orderDir}
     </select>
 
 </mapper>

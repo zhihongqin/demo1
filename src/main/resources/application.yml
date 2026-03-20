@@ -31,8 +31,8 @@ mybatis-plus:
 # 微信小程序配置
 wechat:
   miniapp:
-    app-id: ${WECHAT_APP_ID:your_app_id}
-    app-secret: ${WECHAT_APP_SECRET:your_app_secret}
+    app-id: ${WECHAT_APP_ID:wx89d2576571c4ea2b}
+    app-secret: ${WECHAT_APP_SECRET:1cd4e24afea609e92b1af45e4d40eae9}
     grant-type: authorization_code
 
 # JWT配置
