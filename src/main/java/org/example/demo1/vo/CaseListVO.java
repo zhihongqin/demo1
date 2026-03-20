@@ -23,6 +23,13 @@ public class CaseListVO {
     private String source;
     private String url;
     private Integer aiStatus;
+
+    /** FastGPT 知识库同步状态（管理员列表可见） */
+    private Integer fastgptSyncStatus;
+
+    /** 最近一次知识库同步完成时间 */
+    private LocalDateTime fastgptSyncedAt;
+
     private Integer viewCount;
     private Integer favoriteCount;
     private LocalDateTime createdAt;

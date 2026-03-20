@@ -19,6 +19,8 @@
         <result column="source" property="source"/>
         <result column="url" property="url"/>
         <result column="ai_status" property="aiStatus"/>
+        <result column="fastgpt_sync_status" property="fastgptSyncStatus"/>
+        <result column="fastgpt_synced_at" property="fastgptSyncedAt"/>
         <result column="view_count" property="viewCount"/>
         <result column="favorite_count" property="favoriteCount"/>
         <result column="created_at" property="createdAt"/>
@@ -43,6 +45,8 @@
             lc.source,
             lc.url,
             lc.ai_status,
+            lc.fastgpt_sync_status,
+            lc.fastgpt_synced_at,
             lc.view_count,
             lc.favorite_count,
             lc.created_at,
@@ -71,6 +75,8 @@
             lc.source,
             lc.url,
             lc.ai_status,
+            lc.fastgpt_sync_status,
+            lc.fastgpt_synced_at,
             lc.view_count,
             lc.favorite_count,
             lc.created_at,

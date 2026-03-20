@@ -119,6 +119,17 @@ public class LegalCaseController {
     }
 
     /**
+     * 将案例推送至 FastGPT 知识库（管理员）。
+     * <p>异步执行，要求 ai_status=2；重复推送会在知识库中产生多个集合，请按需使用。
+     */
+    @PostMapping("/{id}/sync-fastgpt")
+    public Result<Void> syncFastgptKnowledge(@PathVariable Long id) {
+        requireAdmin();
+        legalCaseService.triggerFastgptKnowledgeSync(id);
+        return Result.success("知识库同步任务已提交，正在后台处理");
+    }
+
+    /**
      * 逻辑删除案例（管理员）。
      * <p>将 is_deleted 置为 1，案例对普通用户不可见，可通过恢复接口撤销。
      */

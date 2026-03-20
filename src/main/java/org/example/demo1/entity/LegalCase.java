@@ -73,6 +73,18 @@ public class LegalCase {
     /** 状态：0-待处理，1-AI处理中，2-处理完成，3-处理失败 */
     private Integer aiStatus;
 
+    /** FastGPT 知识库同步：0-未同步，1-同步中，2-成功，3-失败 */
+    private Integer fastgptSyncStatus;
+
+    /** 最近一次同步完成时间（成功或失败） */
+    private LocalDateTime fastgptSyncedAt;
+
+    /** 同步失败原因摘要 */
+    private String fastgptSyncError;
+
+    /** FastGPT 知识库集合 ID */
+    private String fastgptCollectionId;
+
     /** 查看次数 */
     private Integer viewCount;
 

@@ -52,6 +52,11 @@ fastgpt:
   score-api-key: ${FASTGPT_SCORE_KEY:fastgpt-iBQCE7ynU4HqqwySwoLO034mVAhJjf2hJnh3XLWM2FI7jYvx3Yc7JqIwWnE}
   model: ${FASTGPT_MODEL:doubao-seed-1-8-251228}
   timeout: 600  # 请求超时秒数
+  # 知识库（OpenAPI dataset）：推送案例文本；datasetId 在 FastGPT 控制台知识库详情中查看
+  knowledge-dataset-id: ${FASTGPT_DATASET_ID:69af7825c0e6ce86c1d52f08}
+  # 留空则使用上面的 api-key（需具备该知识库写入权限）
+  knowledge-api-key: ${FASTGPT_KNOWLEDGE_API_KEY:}
+  knowledge-timeout: ${FASTGPT_KNOWLEDGE_TIMEOUT:180}
 
 # Python 爬虫进程管理配置
 crawler:

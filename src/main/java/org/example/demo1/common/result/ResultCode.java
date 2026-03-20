@@ -23,13 +23,15 @@ public enum ResultCode {
     // 案例相关
     CASE_NOT_EXIST(2001, "案例不存在"),
     CASE_ALREADY_EXIST(2002, "案例已存在"),
+    CASE_AI_NOT_READY(2003, "案例尚未完成AI处理，无法同步至知识库"),
 
     // AI Agent相关
     AGENT_CALL_FAIL(3001, "AI服务调用失败"),
     TRANSLATION_FAIL(3002, "翻译失败"),
     SUMMARY_FAIL(3003, "摘要提取失败"),
     SCORE_FAIL(3004, "重要性评分失败"),
-    ENRICH_FAIL(3005, "案例字段提取失败");
+    ENRICH_FAIL(3005, "案例字段提取失败"),
+    FASTGPT_SYNC_BUSY(3006, "知识库同步进行中，请稍后再试");
 
     private final Integer code;
     private final String message;

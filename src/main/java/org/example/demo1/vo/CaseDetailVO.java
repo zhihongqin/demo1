@@ -32,6 +32,13 @@ public class CaseDetailVO {
     private String url;
 
     private Integer aiStatus;
+
+    /** FastGPT 知识库：0-未同步，1-同步中，2-成功，3-失败 */
+    private Integer fastgptSyncStatus;
+    private LocalDateTime fastgptSyncedAt;
+    private String fastgptSyncError;
+    private String fastgptCollectionId;
+
     private Integer viewCount;
     private Integer favoriteCount;
     private LocalDateTime createdAt;

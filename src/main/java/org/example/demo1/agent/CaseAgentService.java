@@ -36,6 +36,7 @@ public class CaseAgentService {
     private final CaseTranslationMapper caseTranslationMapper;
     private final CaseSummaryMapper caseSummaryMapper;
     private final CaseScoreMapper caseScoreMapper;
+    private final FastgptKnowledgeSyncService fastgptKnowledgeSyncService;
 
     /**
      * 异步对案例进行完整的 AI 处理（翻译 + 摘要 + 评分）
@@ -74,6 +75,8 @@ public class CaseAgentService {
             legalCase.setAiStatus(2);
             legalCaseMapper.updateById(legalCase);
             log.info("案例AI处理完成: caseId={}", caseId);
+
+            fastgptKnowledgeSyncService.syncCaseAsync(caseId);
 
         } catch (Exception e) {
             log.error("案例AI处理失败: caseId={}", caseId, e);

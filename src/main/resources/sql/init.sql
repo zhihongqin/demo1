@@ -50,6 +50,10 @@ CREATE TABLE IF NOT EXISTS `legal_case` (
     `source`           VARCHAR(100) NOT NULL COMMENT '案例发布来源',
     `url`              VARCHAR(512) NOT NULL COMMENT '案例原始访问链接',
     `ai_status`        TINYINT DEFAULT 0 COMMENT 'AI状态：0-待处理，1-处理中，2-已完成，3-失败',
+    `fastgpt_sync_status` TINYINT NOT NULL DEFAULT 0 COMMENT 'FastGPT知识库：0-未同步，1-同步中，2-成功，3-失败',
+    `fastgpt_synced_at` DATETIME NULL COMMENT '最近一次同步完成时间',
+    `fastgpt_sync_error` VARCHAR(1000) NULL COMMENT '同步失败原因',
+    `fastgpt_collection_id` VARCHAR(32) NULL COMMENT 'FastGPT集合ID',
     `view_count`       INT DEFAULT 0 COMMENT '查看次数',
     `favorite_count`   INT DEFAULT 0 COMMENT '收藏次数',
     `created_at`       DATETIME COMMENT '创建时间',
@@ -58,6 +62,7 @@ CREATE TABLE IF NOT EXISTS `legal_case` (
     INDEX idx_case_type (`case_type`),
     INDEX idx_country (`country`),
     INDEX idx_importance_score (`importance_score`),
+    INDEX idx_fastgpt_sync_status (`fastgpt_sync_status`),
     FULLTEXT INDEX ft_search (`title_zh`, `title_en`, `case_reason`, `keywords`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='法律案例主表';
 

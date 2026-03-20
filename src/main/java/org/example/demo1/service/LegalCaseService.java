@@ -68,6 +68,11 @@ public interface LegalCaseService extends IService<LegalCase> {
     void markAiCompleted(Long caseId);
 
     /**
+     * 将案例推送至 FastGPT 知识库（管理员，异步执行）
+     */
+    void triggerFastgptKnowledgeSync(Long caseId);
+
+    /**
      * 逻辑删除案例（is_deleted = 1）
      */
     void softDeleteCase(Long caseId);

@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.demo1.agent.CaseAgentService;
+import org.example.demo1.agent.FastgptKnowledgeSyncService;
 import org.example.demo1.common.exception.BusinessException;
 import org.example.demo1.common.result.ResultCode;
 import org.example.demo1.dto.CaseQueryDTO;
@@ -34,6 +35,7 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
             "created_at", "importance_score", "view_count", "judgment_date");
 
     private final CaseAgentService caseAgentService;
+    private final FastgptKnowledgeSyncService fastgptKnowledgeSyncService;
     private final UserFavoriteMapper userFavoriteMapper;
     private final CaseTranslationMapper caseTranslationMapper;
     private final CaseSummaryMapper caseSummaryMapper;
@@ -264,6 +266,14 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
         legalCase.setAiStatus(2);
         baseMapper.updateById(legalCase);
         log.info("案例 AI 状态手动标记为已完成: caseId={}", caseId);
+        if (legalCase.getIsDeleted() == null || legalCase.getIsDeleted() == 0) {
+            fastgptKnowledgeSyncService.syncCaseAsync(caseId);
+        }
+    }
+
+    @Override
+    public void triggerFastgptKnowledgeSync(Long caseId) {
+        fastgptKnowledgeSyncService.scheduleManualSync(caseId);
     }
 
     @Override
