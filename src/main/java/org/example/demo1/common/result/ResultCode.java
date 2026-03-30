@@ -31,7 +31,11 @@ public enum ResultCode {
     SUMMARY_FAIL(3003, "摘要提取失败"),
     SCORE_FAIL(3004, "重要性评分失败"),
     ENRICH_FAIL(3005, "案例字段提取失败"),
-    FASTGPT_SYNC_BUSY(3006, "知识库同步进行中，请稍后再试");
+    FASTGPT_SYNC_BUSY(3006, "知识库同步进行中，请稍后再试"),
+
+    // 智能问答相关
+    CHAT_FAIL(4001, "智能问答服务调用失败"),
+    CHAT_SESSION_NOT_EXIST(4002, "会话不存在或无权访问");
 
     private final Integer code;
     private final String message;
