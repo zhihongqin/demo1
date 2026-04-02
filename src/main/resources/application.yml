@@ -42,7 +42,8 @@ jwt:
 
 # FastGPT配置
 fastgpt:
-  base-url: ${FASTGPT_BASE_URL:https://api.fastgpt.in/api}
+  # 翻译/摘要/评分等应用所在实例（中国区）
+  base-url: ${FASTGPT_BASE_URL:https://cloud.fastgpt.cn/api}
   api-key: ${FASTGPT_API_KEY:fastgpt-iBQCE7ynU4HqqwySwoLO034mVAhJjf2hJnh3XLWM2FI7jYvx3Yc7JqIwWnE}
   # 翻译应用的API Key
   translation-api-key: ${FASTGPT_TRANSLATION_KEY:fastgpt-iBQCE7ynU4HqqwySwoLO034mVAhJjf2hJnh3XLWM2FI7jYvx3Yc7JqIwWnE}
@@ -50,6 +51,8 @@ fastgpt:
   summary-api-key: ${FASTGPT_SUMMARY_KEY:fastgpt-iBQCE7ynU4HqqwySwoLO034mVAhJjf2hJnh3XLWM2FI7jYvx3Yc7JqIwWnE}
   # 重要性评分应用的API Key
   score-api-key: ${FASTGPT_SCORE_KEY:fastgpt-iBQCE7ynU4HqqwySwoLO034mVAhJjf2hJnh3XLWM2FI7jYvx3Yc7JqIwWnE}
+  # 智能问答应用所在实例（若与其他应用在同一实例，保持与 base-url 相同即可）
+  qa-base-url: ${FASTGPT_QA_BASE_URL:https://cloud.fastgpt.cn/api}
   # 智能问答应用的API Key
   qa-api-key: ${FASTGPT_QA_KEY:fastgpt-cXa11q7LgH1dLSB50YQiZ5h7WfN7HLIyGEI6jyNpnuQ9JwqmXfhfeve8LJ}
   model: ${FASTGPT_MODEL:doubao-seed-1-8-251228}

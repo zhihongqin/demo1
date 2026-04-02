@@ -35,7 +35,8 @@ public enum ResultCode {
 
     // 智能问答相关
     CHAT_FAIL(4001, "智能问答服务调用失败"),
-    CHAT_SESSION_NOT_EXIST(4002, "会话不存在或无权访问");
+    CHAT_SESSION_NOT_EXIST(4002, "会话不存在或无权访问"),
+    CHAT_TASK_NOT_EXIST(4003, "任务不存在或无权访问");
 
     private final Integer code;
     private final String message;

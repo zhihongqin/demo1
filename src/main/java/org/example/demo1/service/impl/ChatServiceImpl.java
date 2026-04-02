@@ -6,22 +6,25 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.demo1.agent.LegalQaAgent;
 import org.example.demo1.common.exception.BusinessException;
 import org.example.demo1.common.result.ResultCode;
 import org.example.demo1.dto.ChatAskDTO;
 import org.example.demo1.entity.ChatMessage;
 import org.example.demo1.entity.ChatSession;
+import org.example.demo1.entity.ChatTask;
 import org.example.demo1.mapper.ChatMessageMapper;
 import org.example.demo1.mapper.ChatSessionMapper;
+import org.example.demo1.mapper.ChatTaskMapper;
+import org.example.demo1.service.ChatAsyncProcessor;
 import org.example.demo1.service.ChatService;
-import org.example.demo1.vo.ChatAnswerVO;
 import org.example.demo1.vo.ChatSessionVO;
+import org.example.demo1.vo.ChatTaskVO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -30,51 +33,89 @@ import java.util.stream.Collectors;
 public class ChatServiceImpl extends ServiceImpl<ChatSessionMapper, ChatSession>
         implements ChatService {
 
-    private final ChatSessionMapper chatSessionMapper;
-    private final ChatMessageMapper chatMessageMapper;
-    private final LegalQaAgent legalQaAgent;
+    private final ChatSessionMapper  chatSessionMapper;
+    private final ChatMessageMapper  chatMessageMapper;
+    private final ChatTaskMapper     chatTaskMapper;
+    private final ChatAsyncProcessor chatAsyncProcessor;
 
-    /** 会话标题最大长度（截取首条提问） */
     private static final int TITLE_MAX_LEN = 50;
 
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public ChatAnswerVO ask(Long userId, ChatAskDTO dto) {
-        String question = dto.getQuestion().trim();
-        String chatId = (dto.getChatId() != null && !dto.getChatId().isBlank())
-                ? dto.getChatId().trim() : null;
+    // ─── 异步问答 ──────────────────────────────────────────────────────────────
 
-        // 1. 查找或创建会话记录
+    /**
+     * 不加 @Transactional，确保每步 insert 立即提交，
+     * 避免异步线程读取时事务尚未提交导致找不到记录。
+     */
+    @Override
+    public ChatTaskVO askAsync(Long userId, ChatAskDTO dto) {
+        String question = dto.getQuestion().trim();
+        String chatId   = (dto.getChatId() != null && !dto.getChatId().isBlank())
+                          ? dto.getChatId().trim() : null;
+
+        // 1. 查找或创建会话（立即提交）
         ChatSession session = findOrCreateSession(userId, chatId, question);
 
-        // 2. 持久化用户消息
+        // 2. 持久化用户消息，并将会话消息数 +1
         saveMessage(session.getId(), userId, "user", question, 0);
+        session.setMessageCount(session.getMessageCount() + 1);
+        session.setUpdatedAt(LocalDateTime.now());
+        chatSessionMapper.updateById(session);
 
-        // 3. 调用 FastGPT 获取回答
-        String answer = legalQaAgent.ask(question, session.getChatId());
+        // 3. 创建异步任务记录（status=0 PENDING）
+        ChatTask task = new ChatTask();
+        task.setTaskId(UUID.randomUUID().toString());
+        task.setSessionId(session.getId());
+        task.setUserId(userId);
+        task.setQuestion(question);
+        task.setStatus(0);
+        chatTaskMapper.insert(task);
 
-        // 4. 持久化 AI 消息
-        saveMessage(session.getId(), userId, "assistant", answer, 0);
+        log.info("创建问答任务: taskId={}, chatId={}, userId={}", task.getTaskId(), session.getChatId(), userId);
 
-        // 5. 更新会话统计
-        updateSessionStats(session, question);
+        // 4. 提交异步任务（主线程已提交所有 DB 变更，安全）
+        chatAsyncProcessor.processTask(task.getTaskId(), session.getChatId());
 
-        // 6. 组装返回结果
-        ChatAnswerVO vo = new ChatAnswerVO();
-        vo.setAnswer(answer);
+        // 5. 立即返回 taskId
+        ChatTaskVO vo = new ChatTaskVO();
+        vo.setTaskId(task.getTaskId());
         vo.setChatId(session.getChatId());
-        vo.setMessageCount(session.getMessageCount());
+        vo.setStatus("PENDING");
         return vo;
     }
 
     @Override
+    public ChatTaskVO pollTask(Long userId, String taskId) {
+        ChatTask task = chatTaskMapper.selectOne(
+                new LambdaQueryWrapper<ChatTask>()
+                        .eq(ChatTask::getTaskId, taskId)
+                        .eq(ChatTask::getUserId, userId));
+        if (task == null) {
+            throw new BusinessException(ResultCode.CHAT_TASK_NOT_EXIST);
+        }
+
+        ChatTaskVO vo = new ChatTaskVO();
+        vo.setTaskId(task.getTaskId());
+        vo.setStatus(statusLabel(task.getStatus()));
+        vo.setAnswer(task.getAnswer());
+        vo.setErrorMsg(task.getErrorMsg());
+
+        // 附上 chatId（通过 sessionId 查询）
+        ChatSession session = chatSessionMapper.selectById(task.getSessionId());
+        if (session != null) {
+            vo.setChatId(session.getChatId());
+        }
+        return vo;
+    }
+
+    // ─── 历史会话 ──────────────────────────────────────────────────────────────
+
+    @Override
     public IPage<ChatSessionVO> listSessions(Long userId, int page, int pageSize) {
         Page<ChatSession> pageParam = new Page<>(page, pageSize);
-        LambdaQueryWrapper<ChatSession> wrapper = new LambdaQueryWrapper<ChatSession>()
-                .eq(ChatSession::getUserId, userId)
-                .orderByDesc(ChatSession::getUpdatedAt);
-
-        IPage<ChatSession> sessionPage = chatSessionMapper.selectPage(pageParam, wrapper);
+        IPage<ChatSession> sessionPage = chatSessionMapper.selectPage(pageParam,
+                new LambdaQueryWrapper<ChatSession>()
+                        .eq(ChatSession::getUserId, userId)
+                        .orderByDesc(ChatSession::getUpdatedAt));
 
         return sessionPage.convert(s -> {
             ChatSessionVO vo = new ChatSessionVO();
@@ -95,8 +136,7 @@ public class ChatServiceImpl extends ServiceImpl<ChatSessionMapper, ChatSession>
         List<ChatMessage> messages = chatMessageMapper.selectList(
                 new LambdaQueryWrapper<ChatMessage>()
                         .eq(ChatMessage::getSessionId, session.getId())
-                        .orderByAsc(ChatMessage::getCreatedAt)
-        );
+                        .orderByAsc(ChatMessage::getCreatedAt));
 
         ChatSessionVO vo = new ChatSessionVO();
         vo.setId(session.getId());
@@ -113,7 +153,6 @@ public class ChatServiceImpl extends ServiceImpl<ChatSessionMapper, ChatSession>
             msgVO.setCreatedAt(m.getCreatedAt());
             return msgVO;
         }).collect(Collectors.toList()));
-
         return vo;
     }
 
@@ -121,12 +160,14 @@ public class ChatServiceImpl extends ServiceImpl<ChatSessionMapper, ChatSession>
     @Transactional(rollbackFor = Exception.class)
     public void deleteSession(Long userId, String chatId) {
         ChatSession session = getSessionByUserAndChatId(userId, chatId);
-        // 逻辑删除会话及其消息
         chatSessionMapper.deleteById(session.getId());
         chatMessageMapper.delete(
                 new LambdaQueryWrapper<ChatMessage>()
-                        .eq(ChatMessage::getSessionId, session.getId())
-        );
+                        .eq(ChatMessage::getSessionId, session.getId()));
+        // 顺便清理该会话下的任务记录
+        chatTaskMapper.delete(
+                new LambdaQueryWrapper<ChatTask>()
+                        .eq(ChatTask::getSessionId, session.getId()));
         log.info("删除会话: userId={}, chatId={}", userId, chatId);
     }
 
@@ -137,13 +178,9 @@ public class ChatServiceImpl extends ServiceImpl<ChatSessionMapper, ChatSession>
             ChatSession existing = chatSessionMapper.selectOne(
                     new LambdaQueryWrapper<ChatSession>()
                             .eq(ChatSession::getChatId, chatId)
-                            .eq(ChatSession::getUserId, userId)
-            );
-            if (existing != null) {
-                return existing;
-            }
+                            .eq(ChatSession::getUserId, userId));
+            if (existing != null) return existing;
         }
-        // 新建会话
         ChatSession session = new ChatSession();
         session.setUserId(userId);
         session.setChatId(chatId != null ? chatId : "chat_" + System.currentTimeMillis() + "_" + userId);
@@ -166,22 +203,21 @@ public class ChatServiceImpl extends ServiceImpl<ChatSessionMapper, ChatSession>
         chatMessageMapper.insert(msg);
     }
 
-    private void updateSessionStats(ChatSession session, String question) {
-        session.setMessageCount(session.getMessageCount() + 2); // 用户1条 + AI1条
-        session.setLastQuestion(question.length() > 200 ? question.substring(0, 200) : question);
-        session.setUpdatedAt(LocalDateTime.now());
-        chatSessionMapper.updateById(session);
-    }
-
     private ChatSession getSessionByUserAndChatId(Long userId, String chatId) {
         ChatSession session = chatSessionMapper.selectOne(
                 new LambdaQueryWrapper<ChatSession>()
                         .eq(ChatSession::getChatId, chatId)
-                        .eq(ChatSession::getUserId, userId)
-        );
-        if (session == null) {
-            throw new BusinessException(ResultCode.CHAT_SESSION_NOT_EXIST);
-        }
+                        .eq(ChatSession::getUserId, userId));
+        if (session == null) throw new BusinessException(ResultCode.CHAT_SESSION_NOT_EXIST);
         return session;
+    }
+
+    private static String statusLabel(Integer status) {
+        if (status == null) return "PENDING";
+        return switch (status) {
+            case 1  -> "DONE";
+            case 2  -> "ERROR";
+            default -> "PENDING";
+        };
     }
 }

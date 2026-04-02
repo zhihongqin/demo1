@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 法律智能问答 Agent
- * 使用专属问答应用的 API Key，调用 FastGPT 为用户解答涉外法律问题
+ * 使用 FastGptQaClient（不传 model / system 消息），通过问答应用 API Key 调用 FastGPT
  */
 @Slf4j
 @Component
@@ -19,19 +19,7 @@ public class LegalQaAgent {
     @Value("${fastgpt.qa-api-key}")
     private String apiKey;
 
-    private final FastGptClient fastGptClient;
-
-    private static final String SYSTEM_PROMPT = """
-            你是一位专业的涉外法律顾问，专注于国际贸易法、国际投资法、跨国合同纠纷、知识产权保护、
-            海事法、国际仲裁及各国涉外法律实务等领域。
-            
-            回答要求：
-            1. 以中文回答，语言简洁、专业、易懂
-            2. 涉及具体法律条文时，请引用相关法规名称
-            3. 如问题超出涉外法律范围，礼貌说明并建议咨询方向
-            4. 不提供具体案件的代理意见，仅提供法律知识咨询
-            5. 回答长度适中，重点突出，避免冗余
-            """;
+    private final FastGptQaClient fastGptQaClient;
 
     /**
      * 回答用户的法律问题（支持多轮对话）
@@ -44,7 +32,7 @@ public class LegalQaAgent {
         log.info("法律问答请求: chatId={}, question={}", chatId,
                 question.length() > 50 ? question.substring(0, 50) + "..." : question);
         try {
-            String answer = fastGptClient.chat(apiKey, SYSTEM_PROMPT, question, chatId);
+            String answer = fastGptQaClient.chat(apiKey, question, chatId);
             log.info("法律问答完成: chatId={}, answerLength={}", chatId, answer.length());
             return answer;
         } catch (BusinessException e) {
