@@ -51,6 +51,14 @@ fastgpt:
   summary-api-key: ${FASTGPT_SUMMARY_KEY:fastgpt-tJsQgrLO0U9cjmBmgipeAgt1a2H9Mx5y2QkGU6rTA7ZgXv4JHw5VcS1n8YE}
   # 重要性评分应用的API Key
   score-api-key: ${FASTGPT_SCORE_KEY:fastgpt-tJsQgrLO0U9cjmBmgipeAgt1a2H9Mx5y2QkGU6rTA7ZgXv4JHw5VcS1n8YE}
+  # 日本案例翻译应用的API Key（若与通用翻译使用同一个Key，填相同值即可）
+  japan-translation-api-key: ${FASTGPT_JAPAN_TRANSLATION_KEY:fastgpt-tJsQgrLO0U9cjmBmgipeAgt1a2H9Mx5y2QkGU6rTA7ZgXv4JHw5VcS1n8YE}
+  # 日本案例摘要提取应用的API Key
+  japan-summary-api-key: ${FASTGPT_JAPAN_SUMMARY_KEY:fastgpt-tJsQgrLO0U9cjmBmgipeAgt1a2H9Mx5y2QkGU6rTA7ZgXv4JHw5VcS1n8YE}
+  # 日本案例重要性评分应用的API Key
+  japan-score-api-key: ${FASTGPT_JAPAN_SCORE_KEY:fastgpt-tJsQgrLO0U9cjmBmgipeAgt1a2H9Mx5y2QkGU6rTA7ZgXv4JHw5VcS1n8YE}
+  # PDF 文件上传至 FastGPT /v1/files 的超时（秒）
+  file-upload-timeout: ${FASTGPT_FILE_UPLOAD_TIMEOUT:120}
   # 智能问答应用所在实例（若与其他应用在同一实例，保持与 base-url 相同即可）
   qa-base-url: ${FASTGPT_QA_BASE_URL:https://cloud.fastgpt.cn/api}
   # 智能问答应用的API Key

@@ -2,6 +2,8 @@ package org.example.demo1.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
+import org.example.demo1.agent.JapanScoreAgent;
+import org.example.demo1.agent.JapanSummaryAgent;
 import org.example.demo1.agent.ScoreAgent;
 import org.example.demo1.agent.SummaryAgent;
 import org.example.demo1.agent.TranslationAgent;
@@ -28,6 +30,8 @@ public class AgentController {
     private final TranslationAgent translationAgent;
     private final SummaryAgent summaryAgent;
     private final ScoreAgent scoreAgent;
+    private final JapanSummaryAgent japanSummaryAgent;
+    private final JapanScoreAgent japanScoreAgent;
     private final CaseTranslationMapper caseTranslationMapper;
     private final CaseSummaryMapper caseSummaryMapper;
     private final CaseScoreMapper caseScoreMapper;
@@ -59,7 +63,7 @@ public class AgentController {
      */
     @PostMapping("/translate")
     public Result<String> translate(@RequestBody TranslateRequest request) {
-        String result = translationAgent.translateToZh(request.getContent());
+        String result = translationAgent.translateToZh(request.getContent()).getContentZh();
         return Result.success(result);
     }
 
@@ -81,6 +85,52 @@ public class AgentController {
     public Result<CaseScoreVO> score(@RequestBody ContentRequest request) {
         CaseScoreVO result = scoreAgent.scoreCase(request.getContent());
         return Result.success(result);
+    }
+
+    /**
+     * 日本案例：通过 PDF 链接提取摘要
+     * POST /api/agent/japan/summary-pdf
+     */
+    @PostMapping("/japan/summary-pdf")
+    public Result<CaseSummaryVO> japanSummaryFromPdf(@RequestBody PdfRequest request) {
+        CaseSummaryVO result = japanSummaryAgent.extractSummaryFromPdf(request.getPdfUrl());
+        return Result.success(result);
+    }
+
+    /**
+     * 日本案例：通过 PDF 链接进行重要性评分
+     * POST /api/agent/japan/score-pdf
+     */
+    @PostMapping("/japan/score-pdf")
+    public Result<CaseScoreVO> japanScoreFromPdf(@RequestBody PdfRequest request) {
+        CaseScoreVO result = japanScoreAgent.scoreCaseFromPdf(request.getPdfUrl());
+        return Result.success(result);
+    }
+
+    /**
+     * 日本案例：通过文本提取摘要（已翻译的中文内容）
+     * POST /api/agent/japan/summary
+     */
+    @PostMapping("/japan/summary")
+    public Result<CaseSummaryVO> japanSummaryFromText(@RequestBody ContentRequest request) {
+        CaseSummaryVO result = japanSummaryAgent.extractSummaryFromText(request.getContent());
+        return Result.success(result);
+    }
+
+    /**
+     * 日本案例：通过文本进行重要性评分
+     * POST /api/agent/japan/score
+     */
+    @PostMapping("/japan/score")
+    public Result<CaseScoreVO> japanScoreFromText(@RequestBody ContentRequest request) {
+        CaseScoreVO result = japanScoreAgent.scoreCaseFromText(request.getContent());
+        return Result.success(result);
+    }
+
+    public static class PdfRequest {
+        private String pdfUrl;
+        public String getPdfUrl() { return pdfUrl; }
+        public void setPdfUrl(String pdfUrl) { this.pdfUrl = pdfUrl; }
     }
 
     public static class TranslateRequest {

@@ -10,7 +10,6 @@ import org.example.demo1.mapper.CaseScoreMapper;
 import org.example.demo1.mapper.CaseSummaryMapper;
 import org.example.demo1.mapper.CaseTranslationMapper;
 import org.example.demo1.mapper.LegalCaseMapper;
-import org.example.demo1.vo.CaseEnrichVO;
 import org.example.demo1.vo.CaseScoreVO;
 import org.example.demo1.vo.CaseSummaryVO;
 import org.springframework.scheduling.annotation.Async;
@@ -28,9 +27,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 public class CaseAgentService {
 
     private final TranslationAgent translationAgent;
+    private final JapanTranslationAgent japanTranslationAgent;
     private final SummaryAgent summaryAgent;
     private final ScoreAgent scoreAgent;
-    private final CaseEnrichAgent caseEnrichAgent;
+    private final JapanSummaryAgent japanSummaryAgent;
+    private final JapanScoreAgent japanScoreAgent;
 
     private final LegalCaseMapper legalCaseMapper;
     private final CaseTranslationMapper caseTranslationMapper;
@@ -56,20 +57,29 @@ public class CaseAgentService {
         legalCaseMapper.updateById(legalCase);
 
         try {
-            // Step 1: 翻译英文→中文（含标题翻译）
-            String translatedContent = doTranslation(legalCase);
+            boolean isJapan = "日本".equals(legalCase.getCountry());
 
-            // Step 2: 提取补全字段（案件类型、关键词、法律条文、国家/地区、法院）
-            String contentForEnrich = translatedContent != null ? translatedContent : legalCase.getContentEn();
-            doEnrich(legalCase, contentForEnrich);
+            // Step 1: 翻译原文→中文（含标题翻译）；日本案例走 PDF 链接翻译，其余走英文文本翻译
+            String translatedContent = isJapan
+                    ? doJapanTranslation(legalCase)
+                    : doTranslation(legalCase);
 
-            // Step 3: 提取摘要（使用中文内容）
-            String contentForAnalysis = translatedContent != null ? translatedContent : legalCase.getContentEn();
-            CaseSummaryVO summaryVO = doSummary(legalCase, contentForAnalysis);
+            // Step 2: 提取摘要；日本案例使用专用 Agent
+            CaseSummaryVO summaryVO;
+            if (isJapan) {
+                summaryVO = doJapanSummary(legalCase, translatedContent);
+            } else {
+                String contentForAnalysis = translatedContent != null ? translatedContent : legalCase.getContentEn();
+                summaryVO = doSummary(legalCase, contentForAnalysis);
+            }
 
-            // Step 4: 重要性评分
-            String contentForScore = buildScoreContent(legalCase, summaryVO);
-            doScore(legalCase, contentForScore);
+            // Step 3: 重要性评分；日本案例使用专用 Agent
+            if (isJapan) {
+                doJapanScore(legalCase, summaryVO);
+            } else {
+                String contentForScore = buildScoreContent(legalCase, summaryVO);
+                doScore(legalCase, contentForScore);
+            }
 
             // 更新案例状态为已完成
             legalCase.setAiStatus(2);
@@ -87,47 +97,55 @@ public class CaseAgentService {
 
     /**
      * 异步单独触发翻译并保存
+     * 日本案例走 PDF 链接翻译，其余走英文文本翻译
      */
     @Async("aiTaskExecutor")
     public void triggerTranslation(Long caseId) {
         log.info("开始异步翻译: caseId={}", caseId);
         LegalCase legalCase = legalCaseMapper.selectById(caseId);
-        doTranslation(legalCase);
-    }
-
-    /**
-     * 异步单独触发字段补全并保存
-     * 提取：案件类型、关键词、法律条文、国家/地区、法院
-     */
-    @Async("aiTaskExecutor")
-    public void triggerEnrich(Long caseId) {
-        log.info("开始异步字段补全: caseId={}", caseId);
-        LegalCase legalCase = legalCaseMapper.selectById(caseId);
         if (legalCase == null) {
             log.error("案例不存在: caseId={}", caseId);
             return;
         }
-        String content = legalCase.getContentZh() != null && !legalCase.getContentZh().isBlank()
-                ? legalCase.getContentZh()
-                : legalCase.getContentEn();
-        doEnrich(legalCase, content);
+        if ("日本".equals(legalCase.getCountry())) {
+            doJapanTranslation(legalCase);
+        } else {
+            doTranslation(legalCase);
+        }
     }
 
     /**
-     * 异步单独触发摘要提取并保存
+     * 字段补全已整合至翻译流程，此接口保留以兼容已有 API 调用，实际不再执行独立补全。
+     * 如需重新补全字段，请重新触发翻译（triggerTranslation）。
+     */
+    @Async("aiTaskExecutor")
+    public void triggerEnrich(Long caseId) {
+        log.info("triggerEnrich 已废弃，字段补全已内嵌于翻译流程中: caseId={}", caseId);
+    }
+
+    /**
+     * 异步单独触发摘要提取并保存。
+     * 日本案例：优先 PDF 模式，PDF 失败时降级使用 contentZh 文本模式。
+     * 其他案例：使用 contentZh 或 contentEn。
      */
     @Async("aiTaskExecutor")
     public void triggerSummary(Long caseId) {
         log.info("开始异步摘要提取: caseId={}", caseId);
         LegalCase legalCase = legalCaseMapper.selectById(caseId);
-        String content = legalCase.getContentZh() != null
-                ? legalCase.getContentZh()
-                : legalCase.getContentEn();
-        doSummary(legalCase, content);
+        if ("日本".equals(legalCase.getCountry())) {
+            doJapanSummary(legalCase, legalCase.getContentZh());
+        } else {
+            String content = legalCase.getContentZh() != null
+                    ? legalCase.getContentZh()
+                    : legalCase.getContentEn();
+            doSummary(legalCase, content);
+        }
     }
 
     /**
-     * 异步单独触发评分并保存
+     * 异步单独触发评分并保存。
+     * 日本案例：优先 PDF 模式，PDF 失败时降级使用摘要数据文本模式。
+     * 其他案例：组装摘要+元数据进行文本评分。
      */
     @Async("aiTaskExecutor")
     public void triggerScore(Long caseId) {
@@ -146,11 +164,68 @@ public class CaseAgentService {
             summaryVO.setDisputeFocus(existing.getDisputeFocus());
             summaryVO.setJudgmentResult(existing.getJudgmentResult());
         }
-        String contentForScore = buildScoreContent(legalCase, summaryVO);
-        doScore(legalCase, contentForScore);
+        if ("日本".equals(legalCase.getCountry())) {
+            doJapanScore(legalCase, summaryVO);
+        } else {
+            String contentForScore = buildScoreContent(legalCase, summaryVO);
+            doScore(legalCase, contentForScore);
+        }
     }
 
     // ==================== 私有处理方法 ====================
+
+    /**
+     * 日本案例专用翻译：通过 pdfUrl 上传 PDF 至 FastGPT 后翻译为中文。
+     * 若 pdfUrl 为空，降级使用 {@link #doTranslation} 处理 contentEn 文本。
+     */
+    private String doJapanTranslation(LegalCase legalCase) {
+        CaseTranslation record = new CaseTranslation();
+        record.setCaseId(legalCase.getId());
+        record.setSourceLang("ja");
+        record.setTargetLang("zh");
+        record.setStatus(1);
+        caseTranslationMapper.insert(record);
+        log.info("日文翻译任务已创建记录(翻译中): caseId={}, recordId={}", legalCase.getId(), record.getId());
+
+        try {
+            // 翻译标题（仅当中文标题为空时）
+            if ((legalCase.getTitleZh() == null || legalCase.getTitleZh().isBlank())
+                    && legalCase.getTitleEn() != null && !legalCase.getTitleEn().isBlank()) {
+                String titleZh = japanTranslationAgent.translateTitle(legalCase.getTitleEn());
+                if (titleZh != null && !titleZh.isBlank()) {
+                    legalCase.setTitleZh(titleZh);
+                    log.info("日文标题翻译完成: caseId={}, titleZh={}", legalCase.getId(), titleZh);
+                }
+            }
+
+            // 翻译正文：优先走 pdfUrl（多轮分页翻译 + 顺带字段提取），降级到 contentEn 文本
+            TranslationResult tr;
+            if (legalCase.getPdfUrl() != null && !legalCase.getPdfUrl().isBlank()) {
+                log.info("使用 PDF 翻译，pdfUrl={}", legalCase.getPdfUrl());
+                tr = japanTranslationAgent.translatePdfToZh(legalCase.getPdfUrl());
+            } else {
+                log.warn("案例无 pdfUrl，降级使用 contentEn 文本翻译: caseId={}", legalCase.getId());
+                tr = translationAgent.translateToZh(legalCase.getContentEn());
+            }
+
+            String translated = tr.getContentZh();
+            record.setTranslatedContent(translated);
+            record.setStatus(2);
+            caseTranslationMapper.updateById(record);
+
+            // 回填翻译中顺带提取的字段（country 保持"日本"，applyTranslationResult 内非空才覆盖）
+            applyTranslationResult(legalCase, tr);
+            legalCaseMapper.updateById(legalCase);
+
+            return translated;
+        } catch (Exception e) {
+            log.error("日文 PDF 翻译失败: caseId={}", legalCase.getId(), e);
+            record.setStatus(3);
+            record.setErrorMsg(e.getMessage());
+            caseTranslationMapper.updateById(record);
+            return null;
+        }
+    }
 
     private String doTranslation(LegalCase legalCase) {
         // 立即追加一条"翻译中"记录
@@ -173,16 +248,17 @@ public class CaseAgentService {
                 }
             }
 
-            // 翻译正文
-            String translated = translationAgent.translateToZh(legalCase.getContentEn());
+            // 翻译正文（同时提取结构化字段）
+            TranslationResult tr = translationAgent.translateToZh(legalCase.getContentEn());
+            String translated = tr.getContentZh();
 
             // 回填翻译结果，更新为已完成
             record.setTranslatedContent(translated);
             record.setStatus(2);
             caseTranslationMapper.updateById(record);
 
-            // 更新案例的中文标题和中文正文
-            legalCase.setContentZh(translated);
+            // 将翻译中顺带提取的字段写入案例（非空才覆盖）
+            applyTranslationResult(legalCase, tr);
             legalCaseMapper.updateById(legalCase);
 
             return translated;
@@ -195,45 +271,21 @@ public class CaseAgentService {
         }
     }
 
-    private CaseEnrichVO doEnrich(LegalCase legalCase, String content) {
-        try {
-            CaseEnrichVO vo = caseEnrichAgent.enrichCase(content, legalCase.getTitleEn());
+    /** 将 TranslationResult 中提取的结构化字段回填到 legalCase（非空才覆盖） */
+    private void applyTranslationResult(LegalCase legalCase, TranslationResult tr) {
+        if (tr.getCaseType() != null) legalCase.setCaseType(tr.getCaseType());
+        if (isNotBlank(tr.getCaseReason()))      legalCase.setCaseReason(tr.getCaseReason());
+        if (isNotBlank(tr.getKeywords()))         legalCase.setKeywords(tr.getKeywords());
+        if (isNotBlank(tr.getLegalProvisions()))  legalCase.setLegalProvisions(tr.getLegalProvisions());
+        if (isNotBlank(tr.getCountry()))          legalCase.setCountry(tr.getCountry());
+        if (isNotBlank(tr.getCourt()))            legalCase.setCourt(tr.getCourt());
+        if (isNotBlank(tr.getContentZh()))        legalCase.setContentZh(tr.getContentZh());
+        log.info("字段回填完成: caseId={}, caseType={}, country={}, court={}",
+                legalCase.getId(), tr.getCaseType(), tr.getCountry(), tr.getCourt());
+    }
 
-            // 直接覆盖所有提取到的字段
-            boolean needUpdate = false;
-
-            if (vo.getCaseType() != null) {
-                legalCase.setCaseType(vo.getCaseType());
-                needUpdate = true;
-            }
-            if (vo.getKeywords() != null && !vo.getKeywords().isBlank()) {
-                legalCase.setKeywords(vo.getKeywords());
-                needUpdate = true;
-            }
-            if (vo.getLegalProvisions() != null && !vo.getLegalProvisions().isBlank()) {
-                legalCase.setLegalProvisions(vo.getLegalProvisions());
-                needUpdate = true;
-            }
-            if (vo.getCountry() != null && !vo.getCountry().isBlank()) {
-                legalCase.setCountry(vo.getCountry());
-                needUpdate = true;
-            }
-            if (vo.getCourt() != null && !vo.getCourt().isBlank()) {
-                legalCase.setCourt(vo.getCourt());
-                needUpdate = true;
-            }
-
-            if (needUpdate) {
-                legalCaseMapper.updateById(legalCase);
-                log.info("案例字段补全完成并已更新数据库: caseId={}", legalCase.getId());
-            }
-
-            return vo;
-        } catch (Exception e) {
-            log.error("字段补全失败: caseId={}", legalCase.getId(), e);
-            // 字段补全失败不中断主流程，记录日志后继续
-            return null;
-        }
+    private static boolean isNotBlank(String s) {
+        return s != null && !s.isBlank();
     }
 
     private CaseSummaryVO doSummary(LegalCase legalCase, String content) {
@@ -301,6 +353,129 @@ public class CaseAgentService {
             return vo;
         } catch (Exception e) {
             log.error("评分失败: caseId={}", legalCase.getId(), e);
+            record.setStatus(3);
+            record.setErrorMsg(e.getMessage());
+            caseScoreMapper.updateById(record);
+            return null;
+        }
+    }
+
+    /**
+     * 日本案例专用摘要提取（优先 PDF 模式，降级文本模式）：
+     * <ol>
+     *   <li>若有 pdfUrl → 优先走 PDF 模式；失败时若有 translatedContent → 降级文本模式</li>
+     *   <li>若无 pdfUrl 但有 translatedContent → 直接走文本模式</li>
+     *   <li>两者均不可用 → 记录失败并返回 null</li>
+     * </ol>
+     */
+    private CaseSummaryVO doJapanSummary(LegalCase legalCase, String translatedContent) {
+        CaseSummary record = new CaseSummary();
+        record.setCaseId(legalCase.getId());
+        record.setStatus(1);
+        caseSummaryMapper.insert(record);
+        log.info("日本案例摘要任务已创建记录(提取中): caseId={}, recordId={}", legalCase.getId(), record.getId());
+
+        try {
+            CaseSummaryVO vo = null;
+
+            // 第一优先：PDF 模式
+            if (isNotBlank(legalCase.getPdfUrl())) {
+                try {
+                    log.info("日本案例摘要：优先使用 PDF 模式，caseId={}", legalCase.getId());
+                    vo = japanSummaryAgent.extractSummaryFromPdf(legalCase.getPdfUrl());
+                } catch (Exception pdfEx) {
+                    log.warn("日本案例摘要 PDF 模式失败，尝试文本模式降级: caseId={}, 错误={}", legalCase.getId(), pdfEx.getMessage());
+                }
+            }
+
+            // 降级：文本模式（PDF 失败或无 pdfUrl，且有译文）
+            if (vo == null && isNotBlank(translatedContent)) {
+                log.info("日本案例摘要：使用文本模式（降级），caseId={}", legalCase.getId());
+                vo = japanSummaryAgent.extractSummaryFromText(translatedContent);
+            }
+
+            if (vo == null) {
+                throw new IllegalStateException("无可用数据源（pdfUrl 和 translatedContent 均为空或均处理失败）");
+            }
+
+            record.setCaseReason(vo.getCaseReason());
+            record.setDisputeFocus(vo.getDisputeFocus());
+            record.setJudgmentResult(vo.getJudgmentResult());
+            record.setKeyPoints(vo.getKeyPoints());
+            record.setStatus(2);
+            caseSummaryMapper.updateById(record);
+
+            legalCase.setCaseReason(vo.getCaseReason());
+            legalCase.setDisputeFocus(vo.getDisputeFocus());
+            legalCase.setJudgmentResult(vo.getJudgmentResult());
+            legalCase.setSummaryZh(vo.getCaseReason() + "；" + vo.getDisputeFocus());
+            legalCaseMapper.updateById(legalCase);
+
+            return vo;
+        } catch (Exception e) {
+            log.error("日本案例摘要提取失败: caseId={}", legalCase.getId(), e);
+            record.setStatus(3);
+            record.setErrorMsg(e.getMessage());
+            caseSummaryMapper.updateById(record);
+            return null;
+        }
+    }
+
+    /**
+     * 日本案例专用评分（优先 PDF 模式，降级文本模式）：
+     * <ol>
+     *   <li>若有 pdfUrl → 优先走 PDF 模式；失败时若有 summaryVO → 降级文本模式</li>
+     *   <li>若无 pdfUrl 但有 summaryVO → 直接走文本模式</li>
+     *   <li>两者均不可用 → 记录失败并返回 null</li>
+     * </ol>
+     */
+    private CaseScoreVO doJapanScore(LegalCase legalCase, CaseSummaryVO summaryVO) {
+        CaseScore record = new CaseScore();
+        record.setCaseId(legalCase.getId());
+        record.setStatus(1);
+        caseScoreMapper.insert(record);
+        log.info("日本案例评分任务已创建记录(评分中): caseId={}, recordId={}", legalCase.getId(), record.getId());
+
+        try {
+            CaseScoreVO vo = null;
+
+            // 第一优先：PDF 模式
+            if (isNotBlank(legalCase.getPdfUrl())) {
+                try {
+                    log.info("日本案例评分：优先使用 PDF 模式，caseId={}", legalCase.getId());
+                    vo = japanScoreAgent.scoreCaseFromPdf(legalCase.getPdfUrl());
+                } catch (Exception pdfEx) {
+                    log.warn("日本案例评分 PDF 模式失败，尝试文本模式降级: caseId={}, 错误={}", legalCase.getId(), pdfEx.getMessage());
+                }
+            }
+
+            // 降级：文本模式（PDF 失败或无 pdfUrl，且有摘要数据）
+            if (vo == null && summaryVO != null) {
+                log.info("日本案例评分：使用文本模式（降级），caseId={}", legalCase.getId());
+                String scoreContent = buildScoreContent(legalCase, summaryVO);
+                vo = japanScoreAgent.scoreCaseFromText(scoreContent);
+            }
+
+            if (vo == null) {
+                throw new IllegalStateException("无可用数据源（pdfUrl 和 summaryVO 均为空或均处理失败）");
+            }
+
+            record.setImportanceScore(vo.getImportanceScore());
+            record.setInfluenceScore(vo.getInfluenceScore());
+            record.setReferenceScore(vo.getReferenceScore());
+            record.setTotalScore(vo.getTotalScore());
+            record.setScoreReason(vo.getScoreReason());
+            record.setScoreTags(vo.getScoreTags());
+            record.setStatus(2);
+            caseScoreMapper.updateById(record);
+
+            legalCase.setImportanceScore(vo.getTotalScore());
+            legalCase.setScoreReason(vo.getScoreReason());
+            legalCaseMapper.updateById(legalCase);
+
+            return vo;
+        } catch (Exception e) {
+            log.error("日本案例评分失败: caseId={}", legalCase.getId(), e);
             record.setStatus(3);
             record.setErrorMsg(e.getMessage());
             caseScoreMapper.updateById(record);

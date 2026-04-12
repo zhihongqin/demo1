@@ -1,5 +1,7 @@
 package org.example.demo1.agent;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,7 +13,8 @@ import java.util.UUID;
 
 /**
  * 翻译 Agent：英文法律案例 → 中文
- * 超长内容自动分段翻译后拼接，避免超出 FastGPT 输入长度限制（8192 tokens）
+ * 超长内容自动分段翻译后拼接；翻译完成后在同一会话中顺带提取结构化字段，
+ * 无需再单独调用 CaseEnrichAgent。
  */
 @Slf4j
 @Component
@@ -22,6 +25,7 @@ public class TranslationAgent {
     private String apiKey;
 
     private final FastGptClient fastGptClient;
+    private final ObjectMapper objectMapper;
 
     /** 每段最大字符数（英文约 6000 字符 ≈ 1500 tokens，留出 prompt 和回复空间） */
     private static final int MAX_CHUNK_SIZE = 6000;
@@ -51,11 +55,28 @@ public class TranslationAgent {
             3. 只输出翻译后的中文标题，不添加任何额外说明或标点
             """;
 
+    /** 翻译完成后，在同一会话中追加的字段提取指令 */
+    private static final String ENRICH_INSTRUCTION = """
+            请根据你刚才翻译的这份法律案例内容，提取以下结构化信息，以严格的JSON格式输出，不要包含任何其他文字：
+            {
+              "caseType": 1,
+              "caseReason": "案由简述",
+              "keywords": "关键词1,关键词2,关键词3",
+              "legalProvisions": "法律条文1,法律条文2",
+              "country": "国家/地区名称",
+              "court": "法院名称"
+            }
+            字段说明：
+            - caseType：案件类型，只能填1（民事）、2（刑事）、3（行政）、4（商事）之一，无法判断填1
+            - caseReason：案由，简短描述本案核心法律争议，不超过30字
+            - keywords：核心关键词3-8个，中文，英文逗号分隔
+            - legalProvisions：涉及的主要法律条文或法规名称（保留原文名并附中文名），多个用英文逗号分隔，不超过5条，无明确条文则填"无"
+            - country：案件所属国家或地区（中文名称，如：美国、英国、中国香港）
+            - court：审理该案的法院名称（中文译名，保留英文原名在括号内，如：美国联邦第九巡回上诉法院(9th Cir.)）
+            """;
+
     /**
      * 翻译案例标题（英文→中文）
-     *
-     * @param englishTitle 英文标题
-     * @return 中文标题
      */
     public String translateTitle(String englishTitle) {
         if (englishTitle == null || englishTitle.isBlank()) {
@@ -78,58 +99,78 @@ public class TranslationAgent {
     }
 
     /**
-     * 将英文法律案例内容翻译为中文
-     * 内容超过 MAX_CHUNK_SIZE 时自动分段翻译后拼接
+     * 将英文法律案例内容翻译为中文，并在同一会话中顺带提取结构化字段。
+     * 内容超过 MAX_CHUNK_SIZE 时自动分段翻译后拼接。
      *
      * @param englishContent 英文原文
-     * @return 中文翻译
+     * @return 包含翻译正文及提取字段的结果对象
      */
-    public String translateToZh(String englishContent) {
+    public TranslationResult translateToZh(String englishContent) {
         if (englishContent == null || englishContent.isBlank()) {
-            return "";
+            TranslationResult empty = new TranslationResult();
+            empty.setContentZh("");
+            return empty;
         }
 
         log.info("开始翻译案例，内容长度: {}", englishContent.length());
 
-        if (englishContent.length() <= MAX_CHUNK_SIZE) {
-            return translateChunk(englishContent);
-        }
-
-        // 超长内容分段翻译，使用同一 chatId 关联会话，让 AI 记住历史上下文
         List<String> chunks = splitIntoChunks(englishContent);
-        log.info("内容过长，分为 {} 段翻译", chunks.size());
-
         String chatId = UUID.randomUUID().toString();
-        log.info("分段翻译会话 chatId: {}", chatId);
+        log.info("共 {} 段，翻译会话 chatId: {}", chunks.size(), chatId);
 
-        StringBuilder result = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
         for (int i = 0; i < chunks.size(); i++) {
             log.info("翻译第 {}/{} 段，长度: {}", i + 1, chunks.size(), chunks.get(i).length());
             String translated = translateChunk(chunks.get(i), chatId);
-            result.append(translated);
+            sb.append(translated);
             if (i < chunks.size() - 1) {
-                result.append("\n\n");
+                sb.append("\n\n");
             }
         }
 
-        String finalResult = result.toString();
-        log.info("翻译完成，共 {} 段，结果长度: {}", chunks.size(), finalResult.length());
-        return finalResult;
+        String contentZh = sb.toString();
+        log.info("翻译完成，共 {} 段，结果长度: {}", chunks.size(), contentZh.length());
+
+        TranslationResult result = new TranslationResult();
+        result.setContentZh(contentZh);
+
+        // 字段提取：复用同一 chatId，模型已有完整文档上下文，无需重传内容
+        extractEnrichFields(chatId, result);
+
+        return result;
     }
 
     /**
-     * 翻译单个文本片段（单次对话，不携带会话记忆）
+     * 在已有翻译会话中追加字段提取请求，将结果填入 result 对象。
+     * 提取失败不抛异常，仅记录日志，由调用方降级处理。
      */
-    private String translateChunk(String chunk) {
-        return translateChunk(chunk, null);
+    private void extractEnrichFields(String chatId, TranslationResult result) {
+        log.info("开始字段提取（复用翻译会话），chatId={}", chatId);
+        try {
+            String raw = fastGptClient.chat(apiKey, null, ENRICH_INSTRUCTION, chatId);
+            if (raw == null || raw.isBlank()) {
+                log.warn("字段提取返回为空，chatId={}", chatId);
+                return;
+            }
+
+            String json = cleanJson(raw);
+            JsonNode node = objectMapper.readTree(json);
+
+            int caseType = node.path("caseType").asInt(1);
+            result.setCaseType(caseType >= 1 && caseType <= 4 ? caseType : 1);
+            result.setCaseReason(node.path("caseReason").asText(""));
+            result.setKeywords(node.path("keywords").asText(""));
+            result.setLegalProvisions(node.path("legalProvisions").asText(""));
+            result.setCountry(node.path("country").asText(""));
+            result.setCourt(node.path("court").asText(""));
+
+            log.info("字段提取完成，caseType={}, country={}, court={}",
+                    result.getCaseType(), result.getCountry(), result.getCourt());
+        } catch (Exception e) {
+            log.error("字段提取失败，chatId={}，错误: {}", chatId, e.getMessage());
+        }
     }
 
-    /**
-     * 翻译单个文本片段
-     *
-     * @param chunk  待翻译的文本片段
-     * @param chatId 会话 ID，不为 null 时 FastGPT 将关联历史对话以保持上下文一致性
-     */
     private String translateChunk(String chunk, String chatId) {
         try {
             String result = fastGptClient.chat(apiKey, SYSTEM_PROMPT, chunk, chatId);
@@ -145,9 +186,8 @@ public class TranslationAgent {
     }
 
     /**
-     * 将长文本按段落切分为不超过 MAX_CHUNK_SIZE 的片段
-     * 优先按双换行（段落）切分，避免在句子中间截断；
-     * 单个段落超长时按 MAX_CHUNK_SIZE 强制截断
+     * 将长文本按段落切分为不超过 MAX_CHUNK_SIZE 的片段。
+     * 优先按双换行（段落）切分；单段超长时按字符数强制截断。
      */
     private List<String> splitIntoChunks(String text) {
         List<String> chunks = new ArrayList<>();
@@ -158,17 +198,14 @@ public class TranslationAgent {
             if (para.isBlank()) continue;
 
             if (para.length() > MAX_CHUNK_SIZE) {
-                // 当前缓冲区先入队
                 if (!current.isEmpty()) {
                     chunks.add(current.toString().trim());
                     current = new StringBuilder();
                 }
-                // 超长段落按字符数强制截断
                 for (int i = 0; i < para.length(); i += MAX_CHUNK_SIZE) {
                     chunks.add(para.substring(i, Math.min(i + MAX_CHUNK_SIZE, para.length())));
                 }
             } else if (current.length() + para.length() + 2 > MAX_CHUNK_SIZE) {
-                // 加入当前段落会超限，先提交缓冲区
                 chunks.add(current.toString().trim());
                 current = new StringBuilder();
                 current.append(para).append("\n\n");
@@ -180,6 +217,20 @@ public class TranslationAgent {
         if (!current.isEmpty()) {
             chunks.add(current.toString().trim());
         }
+
+        // 内容不足一段时直接作为单段返回
+        if (chunks.isEmpty() && !text.isBlank()) {
+            chunks.add(text.trim());
+        }
+
         return chunks;
+    }
+
+    private static String cleanJson(String raw) {
+        raw = raw.trim();
+        if (raw.startsWith("```json")) raw = raw.substring(7);
+        else if (raw.startsWith("```")) raw = raw.substring(3);
+        if (raw.endsWith("```")) raw = raw.substring(0, raw.length() - 3);
+        return raw.trim();
     }
 }

@@ -30,7 +30,7 @@ public class ScoreAgent {
             评分维度（均为0-100分）：
             - importanceScore：案例重要性（对法律实践的影响程度）
             - influenceScore：影响力评分（判决影响范围、是否具有里程碑意义）
-            - referenceScore：参考价值评分（对类似案件的参考价值）
+            - referenceScore：参考价值评分（对中国企业、组织或涉外当事人的参考和借鉴价值）
             - totalScore：综合评分（三个维度的加权平均）
             
             输出格式：
