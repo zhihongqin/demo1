@@ -121,4 +121,13 @@ public interface LegalCaseService extends IService<LegalCase> {
      * 删除浏览记录（支持批量）
      */
     void deleteBrowseHistory(Long userId, List<Long> ids);
+
+    /**
+     * 代理获取案例原始 PDF 文书字节流（用于小程序绕过日本法院防盗链）
+     *
+     * @param caseId 案例 ID
+     * @return PDF 文件的字节数组
+     * @throws org.example.demo1.common.exception.BusinessException 案例不存在或 pdfUrl 为空时抛出
+     */
+    byte[] proxyPdf(Long caseId);
 }

@@ -18,9 +18,15 @@ import org.example.demo1.mapper.*;
 import org.example.demo1.service.LegalCaseService;
 import org.example.demo1.vo.*;
 
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -30,6 +36,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase> implements LegalCaseService {
+
+    private static final OkHttpClient PDF_HTTP_CLIENT = new OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(90, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .build();
 
     private static final Set<String> ALLOWED_ORDER_BY = Set.of(
             "created_at", "importance_score", "view_count", "judgment_date");
@@ -378,6 +390,45 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
                 new LambdaQueryWrapper<BrowseHistory>()
                         .eq(BrowseHistory::getUserId, userId)
                         .in(BrowseHistory::getId, ids));
+    }
+
+    @Override
+    public byte[] proxyPdf(Long caseId) {
+        LegalCase legalCase = getById(caseId);
+        if (legalCase == null) {
+            throw new BusinessException(ResultCode.CASE_NOT_EXIST);
+        }
+        String pdfUrl = legalCase.getPdfUrl();
+        if (pdfUrl == null || pdfUrl.isBlank()) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "该案例无 PDF 文书链接");
+        }
+
+        log.info("代理获取 PDF，caseId={}，pdfUrl={}", caseId, pdfUrl);
+
+        Request request = new Request.Builder()
+                .url(pdfUrl)
+                // 模拟浏览器请求，绕过日本法院防盗链校验
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        + "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        + "Chrome/124.0.0.0 Safari/537.36")
+                .header("Referer", "https://www.courts.go.jp/")
+                .header("Accept", "application/pdf,*/*")
+                .build();
+
+        try (Response response = PDF_HTTP_CLIENT.newCall(request).execute()) {
+            if (!response.isSuccessful() || response.body() == null) {
+                log.warn("PDF 获取失败，caseId={}，statusCode={}", caseId, response.code());
+                throw new BusinessException(ResultCode.INTERNAL_ERROR, "PDF 文书获取失败，状态码：" + response.code());
+            }
+            byte[] bytes = response.body().bytes();
+            log.info("PDF 获取成功，caseId={}，大小={}KB", caseId, bytes.length / 1024);
+            return bytes;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (IOException e) {
+            log.error("PDF 代理请求异常，caseId={}，pdfUrl={}", caseId, pdfUrl, e);
+            throw new BusinessException(ResultCode.INTERNAL_ERROR, "PDF 文书网络请求失败：" + e.getMessage());
+        }
     }
 
     private void checkCaseExists(Long caseId) {

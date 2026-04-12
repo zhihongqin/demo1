@@ -20,6 +20,10 @@ import org.example.demo1.vo.CaseSummaryRecordVO;
 import org.example.demo1.vo.CaseTranslationRecordVO;
 
 import java.util.List;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -76,6 +80,22 @@ public class LegalCaseController {
         Long userId = UserContext.getUserId();
         boolean isAdmin = UserContext.isAdmin();
         return Result.success(legalCaseService.getCaseDetail(id, userId, isAdmin));
+    }
+
+    /**
+     * 代理获取案例原始 PDF 文书（公开接口）。
+     * <p>后端以服务器身份向日本裁判所请求 PDF，携带必要的 Referer/User-Agent 头绕过防盗链，
+     * 再将字节流透传给微信小程序的 wx.downloadFile，从而实现小程序内直接打开 PDF 文书。
+     */
+    @GetMapping("/{id}/pdf-proxy")
+    public ResponseEntity<byte[]> proxyPdf(@PathVariable Long id) {
+        byte[] pdfBytes = legalCaseService.proxyPdf(id);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDisposition(
+                ContentDisposition.inline().filename("case_" + id + ".pdf").build());
+        headers.setContentLength(pdfBytes.length);
+        return ResponseEntity.ok().headers(headers).body(pdfBytes);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
