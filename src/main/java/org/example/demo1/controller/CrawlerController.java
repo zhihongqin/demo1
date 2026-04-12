@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.demo1.common.result.Result;
 import org.example.demo1.crawler.CaseCrawlerService;
 import org.example.demo1.crawler.PythonCrawlerService;
+import org.example.demo1.dto.JapanCrawlerParamDTO;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -154,5 +155,58 @@ public class CrawlerController {
     @GetMapping("/python/status")
     public Result<Map<String, Boolean>> getPythonStatus() {
         return Result.success(pythonCrawlerService.getAllStatus());
+    }
+
+    // ─── 日本裁判所专属爬虫 ───────────────────────────────────────────────────
+
+    /**
+     * 携带检索参数启动日本裁判所爬虫
+     * POST /api/admin/crawler/python/start-japan
+     * Body: { "query1":"中華", "maxPages":20, ... }
+     */
+    @PostMapping("/python/start-japan")
+    public Result<String> startJapanCrawler(@RequestBody JapanCrawlerParamDTO params) {
+        final String CRAWLER = "japan_courts";
+        if (pythonCrawlerService.isRunning(CRAWLER)) {
+            return Result.fail(400, "日本裁判所爬虫正在运行中，请勿重复启动");
+        }
+        if (params.getQuery1() == null || params.getQuery1().isBlank()) {
+            return Result.fail(400, "第1检索关键词（query1）不能为空");
+        }
+        List<String> argList = params.toArgList();
+        log.info("[日本裁判所爬虫] 启动参数: {}", argList);
+        pythonCrawlerService.startWithArgs(CRAWLER, argList);
+        return Result.success(
+            "日本裁判所爬虫已启动（异步执行中）\n关键词: " + params.getQuery1()
+            + "，最大页数: " + params.getMaxPages()
+            + "\n日志见 logs/crawler_japan_courts.log"
+        );
+    }
+
+    /**
+     * 停止日本裁判所爬虫
+     * POST /api/admin/crawler/python/stop-japan
+     */
+    @PostMapping("/python/stop-japan")
+    public Result<String> stopJapanCrawler() {
+        final String CRAWLER = "japan_courts";
+        boolean stopped = pythonCrawlerService.stop(CRAWLER);
+        return stopped
+                ? Result.success("日本裁判所爬虫已停止")
+                : Result.fail(400, "日本裁判所爬虫未在运行");
+    }
+
+    /**
+     * 查询日本裁判所爬虫运行状态
+     * GET /api/admin/crawler/python/status-japan
+     */
+    @GetMapping("/python/status-japan")
+    public Result<Map<String, Object>> getJapanCrawlerStatus() {
+        final String CRAWLER = "japan_courts";
+        boolean running = pythonCrawlerService.isRunning(CRAWLER);
+        return Result.success(Map.of(
+                "running", running,
+                "message", running ? "日本裁判所爬虫运行中" : "日本裁判所爬虫空闲"
+        ));
     }
 }

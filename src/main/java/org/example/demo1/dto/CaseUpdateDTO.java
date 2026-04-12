@@ -67,4 +67,7 @@ public class CaseUpdateDTO {
 
     /** 案例原始访问链接 */
     private String url;
+
+    /** 原文 PDF 链接（日本裁判所等） */
+    private String pdfUrl;
 }

@@ -50,7 +50,7 @@ class BaseCrawler(ABC):
             必填：url, source
             可选：case_no, title_en, title_zh, case_reason, case_type,
                   country, court, judgment_date(date对象或"yyyy-MM-dd"字符串),
-                  content_en, keywords
+                  content_en, keywords, pdf_url
         :return: True=入库成功，False=已存在跳过
         """
         url = case.get("url", "")
@@ -73,18 +73,20 @@ class BaseCrawler(ABC):
         now = datetime.now()
         title_en = case.get("title_en", "")
 
+        pdf_url = case.get("pdf_url") or None
+
         cursor = self.conn.cursor()
         cursor.execute("""
             INSERT INTO legal_case
                 (case_no, title_zh, title_en, case_reason, case_type,
                  country, court, judgment_date, content_en,
-                 keywords, source, url,
+                 keywords, source, url, pdf_url,
                  ai_status, view_count, favorite_count,
                  created_at, updated_at, is_deleted)
             VALUES
                 (%s, %s, %s, %s, %s,
                  %s, %s, %s, %s,
-                 %s, %s, %s,
+                 %s, %s, %s, %s,
                  0, 0, 0,
                  %s, %s, 0)
         """, (
@@ -100,6 +102,7 @@ class BaseCrawler(ABC):
             case.get("keywords"),
             case.get("source", "unknown"),
             url[:512],
+            pdf_url[:1024] if pdf_url else None,
             now, now,
         ))
         self.conn.commit()

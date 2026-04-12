@@ -31,6 +31,9 @@ public class CaseDetailVO {
     private String source;
     private String url;
 
+    /** 原文 PDF 链接（日本裁判所等） */
+    private String pdfUrl;
+
     private Integer aiStatus;
 
     /** FastGPT 知识库：0-未同步，1-同步中，2-成功，3-失败 */

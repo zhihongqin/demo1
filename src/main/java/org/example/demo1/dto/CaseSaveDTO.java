@@ -45,4 +45,7 @@ public class CaseSaveDTO {
 
     @NotBlank(message = "案例原始访问链接不能为空")
     private String url;
+
+    /** 原文 PDF 链接（日本裁判所等，可选） */
+    private String pdfUrl;
 }

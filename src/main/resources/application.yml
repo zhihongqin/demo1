@@ -44,17 +44,17 @@ jwt:
 fastgpt:
   # 翻译/摘要/评分等应用所在实例（中国区）
   base-url: ${FASTGPT_BASE_URL:https://cloud.fastgpt.cn/api}
-  api-key: ${FASTGPT_API_KEY:fastgpt-iBQCE7ynU4HqqwySwoLO034mVAhJjf2hJnh3XLWM2FI7jYvx3Yc7JqIwWnE}
+  api-key: ${FASTGPT_API_KEY:fastgpt-tJsQgrLO0U9cjmBmgipeAgt1a2H9Mx5y2QkGU6rTA7ZgXv4JHw5VcS1n8YE}
   # 翻译应用的API Key
-  translation-api-key: ${FASTGPT_TRANSLATION_KEY:fastgpt-iBQCE7ynU4HqqwySwoLO034mVAhJjf2hJnh3XLWM2FI7jYvx3Yc7JqIwWnE}
+  translation-api-key: ${FASTGPT_TRANSLATION_KEY:fastgpt-tJsQgrLO0U9cjmBmgipeAgt1a2H9Mx5y2QkGU6rTA7ZgXv4JHw5VcS1n8YE}
   # 摘要提取应用的API Key
-  summary-api-key: ${FASTGPT_SUMMARY_KEY:fastgpt-iBQCE7ynU4HqqwySwoLO034mVAhJjf2hJnh3XLWM2FI7jYvx3Yc7JqIwWnE}
+  summary-api-key: ${FASTGPT_SUMMARY_KEY:fastgpt-tJsQgrLO0U9cjmBmgipeAgt1a2H9Mx5y2QkGU6rTA7ZgXv4JHw5VcS1n8YE}
   # 重要性评分应用的API Key
-  score-api-key: ${FASTGPT_SCORE_KEY:fastgpt-iBQCE7ynU4HqqwySwoLO034mVAhJjf2hJnh3XLWM2FI7jYvx3Yc7JqIwWnE}
+  score-api-key: ${FASTGPT_SCORE_KEY:fastgpt-tJsQgrLO0U9cjmBmgipeAgt1a2H9Mx5y2QkGU6rTA7ZgXv4JHw5VcS1n8YE}
   # 智能问答应用所在实例（若与其他应用在同一实例，保持与 base-url 相同即可）
   qa-base-url: ${FASTGPT_QA_BASE_URL:https://cloud.fastgpt.cn/api}
   # 智能问答应用的API Key
-  qa-api-key: ${FASTGPT_QA_KEY:fastgpt-cXa11q7LgH1dLSB50YQiZ5h7WfN7HLIyGEI6jyNpnuQ9JwqmXfhfeve8LJ}
+  qa-api-key: ${FASTGPT_QA_KEY:fastgpt-tJsQgrLO0U9cjmBmgipeAgt1a2H9Mx5y2QkGU6rTA7ZgXv4JHw5VcS1n8YE}
   model: ${FASTGPT_MODEL:doubao-seed-1-8-251228}
   timeout: 600  # 请求超时秒数
   # 知识库（OpenAPI dataset）：推送案例文本；datasetId 在 FastGPT 控制台知识库详情中查看

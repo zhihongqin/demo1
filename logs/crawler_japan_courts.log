@@ -1,0 +1,42 @@
+Traceback (most recent call last):
+  File "D:\Code\demo1\crawlers\japan_courts_crawler.py", line 28, in <module>
+    from base_crawler import BaseCrawler
+  File "D:\Code\demo1\crawlers\base_crawler.py", line 7, in <module>
+    import mysql.connector
+ModuleNotFoundError: No module named 'mysql'
+[DB] 数据库连接成功
+[japan_courts] 开始爬取 | query1='中華' query2='' max_pages=1
+[japan_courts] ── 第 1 页（offset=0）──
+[跳过] 已存在: https://www.courts.go.jp/hanrei/95698/detail4/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/95798/detail4/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/94902/detail8/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/94897/detail8/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/94303/detail8/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/94198/detail8/index.html
+[入库] 特許権移転登録手続請求事件
+[入库] 国家賠償請求控訴事件
+[入库] 損害賠償請求事件
+[入库] 損害賠償請求事件
+[入库] 損害賠償請求事件
+[入库] 損害賠償請求事件
+[入库] 損害賠償請求事件
+[入库] 偽造有価証券輸入、関税法違反、有価証券偽造、組織的な犯罪の処罰及び犯罪収益の規制等に関する法律違反
+[入库] 所得税更正処分取消等請求事件
+[入库] 不正競争防止法違反
+[入库] 審決取消請求事件
+[入库] 医師国家試験予備試験受験資格認定処分取消差止め等請求事件
+[入库] 損害賠償等請求事件
+[入库] 損害金請求事件
+[入库] 発信者情報開示命令申立却下決定に対する即時抗告
+[入库] 一時金申請却下処分取消請求控訴事件
+[入库] 不正競争防止法違反
+[入库] 収賄、組織的な犯罪の処罰及び犯罪収益の規制等に関する法律違反
+[入库] 不正競争行為差止等請求事件
+[入库] 殺人
+[入库] 仮の差止め申立て事件
+[入库] 不正競争防止法に基づく差止請求事件
+[入库] 一時金支給申請却下処分取消請求控訴事件
+[入库] 損害賠償等請求事件
+[japan_courts] 第 1 页完成，本页入库 24 条，累计 24 条
+[japan_courts] 全部完成，共入库 24 条
+[DB] 数据库连接已关闭

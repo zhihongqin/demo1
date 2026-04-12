@@ -7,7 +7,9 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -31,12 +33,23 @@ public class PythonCrawlerService {
     private String pythonExecutable;
 
     /**
-     * 异步启动指定爬虫
+     * 异步启动指定爬虫（无额外参数）
      *
      * @param crawlerName 爬虫名，对应脚本文件 {scriptDir}/{crawlerName}_crawler.py
      */
     @Async
     public void start(String crawlerName) {
+        startWithArgs(crawlerName, List.of());
+    }
+
+    /**
+     * 异步启动指定爬虫，并向脚本传入额外命令行参数
+     *
+     * @param crawlerName 爬虫名，对应脚本文件 {scriptDir}/{crawlerName}_crawler.py
+     * @param extraArgs   追加到 python script.py 之后的参数列表，如 ["--query1", "中華", "--max-pages", "20"]
+     */
+    @Async
+    public void startWithArgs(String crawlerName, List<String> extraArgs) {
         if (isRunning(crawlerName)) {
             log.warn("[Python爬虫] {} 已在运行中，忽略本次启动请求", crawlerName);
             return;
@@ -57,13 +70,21 @@ public class PythonCrawlerService {
         File logFile = new File("logs/crawler_" + crawlerName + ".log");
 
         try {
-            ProcessBuilder pb = new ProcessBuilder(pythonExecutable, scriptFile.getAbsolutePath());
+            List<String> cmd = new ArrayList<>();
+            cmd.add(pythonExecutable);
+            cmd.add(scriptFile.getAbsolutePath());
+            if (extraArgs != null) {
+                cmd.addAll(extraArgs);
+            }
+
+            ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
             pb.redirectOutput(ProcessBuilder.Redirect.appendTo(logFile));
 
             Process process = pb.start();
             runningProcesses.put(crawlerName, process);
-            log.info("[Python爬虫] {} 已启动，pid={}, 日志={}", crawlerName, process.pid(), logFile.getAbsolutePath());
+            log.info("[Python爬虫] {} 已启动，pid={}, args={}, 日志={}",
+                    crawlerName, process.pid(), extraArgs, logFile.getAbsolutePath());
 
             // 进程结束后自动从 map 中移除
             process.onExit().thenAccept(p -> {
