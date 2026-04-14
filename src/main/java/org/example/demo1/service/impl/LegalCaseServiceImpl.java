@@ -63,14 +63,21 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
         String orderDir = "asc".equalsIgnoreCase(dto.getOrderDir()) ? "ASC" : "DESC";
 
         Page<CaseListVO> page = new Page<>(dto.getPageNum(), dto.getPageSize());
-        IPage<CaseListVO> result = baseMapper.searchCases(page, dto.getKeyword(),
+        String keyword = dto.getKeyword();
+        if (keyword != null) {
+            keyword = keyword.trim();
+            if (keyword.isEmpty()) {
+                keyword = null;
+            }
+        }
+        IPage<CaseListVO> result = baseMapper.searchCases(page, keyword,
                 dto.getCaseType(), dto.getCountry(), userId, isAdmin, orderBy, orderDir);
 
         // 记录搜索历史（含未登录用户，用于热门词统计）
-        if (dto.getKeyword() != null && !dto.getKeyword().isBlank()) {
+        if (keyword != null) {
             SearchHistory history = new SearchHistory();
             history.setUserId(userId);
-            history.setKeyword(dto.getKeyword().trim());
+            history.setKeyword(keyword);
             history.setSearchType(1);
             history.setResultCount((int) result.getTotal());
             searchHistoryMapper.insert(history);

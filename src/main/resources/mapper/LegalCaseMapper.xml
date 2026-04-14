@@ -93,14 +93,10 @@
                 lc.is_deleted = 0
                 AND lc.ai_status = 2
             </if>
+            <!-- 与 ft_search 索引列一致（init.sql / legal_case_fulltext_ngram.sql） -->
             <if test="keyword != null and keyword != ''">
-                AND (
-                    lc.title_zh LIKE CONCAT('%', #{keyword}, '%')
-                    OR lc.title_en LIKE CONCAT('%', #{keyword}, '%')
-                    OR lc.case_reason LIKE CONCAT('%', #{keyword}, '%')
-                    OR lc.keywords LIKE CONCAT('%', #{keyword}, '%')
-                    OR lc.summary_zh LIKE CONCAT('%', #{keyword}, '%')
-                )
+                AND MATCH(lc.title_zh, lc.title_en, lc.case_reason, lc.keywords, lc.summary_zh)
+                    AGAINST(#{keyword} IN NATURAL LANGUAGE MODE)
             </if>
             <if test="caseType != null">
                 AND lc.case_type = #{caseType}
@@ -109,7 +105,16 @@
                 AND lc.country = #{country}
             </if>
         </where>
-        ORDER BY lc.${orderBy} ${orderDir}
+        <choose>
+            <when test="keyword != null and keyword != ''">
+                ORDER BY MATCH(lc.title_zh, lc.title_en, lc.case_reason, lc.keywords, lc.summary_zh)
+                    AGAINST(#{keyword} IN NATURAL LANGUAGE MODE) DESC,
+                    lc.${orderBy} ${orderDir}
+            </when>
+            <otherwise>
+                ORDER BY lc.${orderBy} ${orderDir}
+            </otherwise>
+        </choose>
     </select>
 
 </mapper>

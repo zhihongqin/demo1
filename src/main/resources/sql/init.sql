@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS `legal_case` (
     INDEX idx_country (`country`),
     INDEX idx_importance_score (`importance_score`),
     INDEX idx_fastgpt_sync_status (`fastgpt_sync_status`),
-    FULLTEXT INDEX ft_search (`title_zh`, `title_en`, `case_reason`, `keywords`)
+    FULLTEXT INDEX ft_search (`title_zh`, `title_en`, `case_reason`, `keywords`, `summary_zh`) WITH PARSER ngram
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='法律案例主表';
 
 -- 案例翻译记录表
