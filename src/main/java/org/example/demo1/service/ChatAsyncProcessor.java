@@ -47,8 +47,9 @@ public class ChatAsyncProcessor {
         }
 
         try {
-            // 1. 调用 FastGPT
-            String answer = legalQaAgent.ask(task.getQuestion(), fastgptChatId);
+            // 1. 调用 FastGPT（可选附件）
+            String answer = legalQaAgent.ask(task.getQuestion(), fastgptChatId,
+                    task.getFileUrl(), task.getFileName());
 
             // 2. 持久化 AI 消息
             ChatMessage aiMsg = new ChatMessage();

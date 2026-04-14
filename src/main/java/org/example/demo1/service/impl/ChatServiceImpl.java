@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.demo1.common.exception.BusinessException;
 import org.example.demo1.common.result.ResultCode;
+import org.example.demo1.config.TencentCosProperties;
 import org.example.demo1.dto.ChatAskDTO;
 import org.example.demo1.entity.ChatMessage;
 import org.example.demo1.entity.ChatSession;
@@ -21,6 +22,7 @@ import org.example.demo1.vo.ChatSessionVO;
 import org.example.demo1.vo.ChatTaskVO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,6 +39,7 @@ public class ChatServiceImpl extends ServiceImpl<ChatSessionMapper, ChatSession>
     private final ChatMessageMapper  chatMessageMapper;
     private final ChatTaskMapper     chatTaskMapper;
     private final ChatAsyncProcessor chatAsyncProcessor;
+    private final TencentCosProperties tencentCosProperties;
 
     private static final int TITLE_MAX_LEN = 50;
 
@@ -52,11 +55,18 @@ public class ChatServiceImpl extends ServiceImpl<ChatSessionMapper, ChatSession>
         String chatId   = (dto.getChatId() != null && !dto.getChatId().isBlank())
                           ? dto.getChatId().trim() : null;
 
+        validateAttachment(dto);
+        String fileUrl = StringUtils.hasText(dto.getFileUrl()) ? dto.getFileUrl().strip() : null;
+        String fileName = StringUtils.hasText(dto.getFileName()) ? dto.getFileName().strip() : null;
+        if (fileUrl == null) {
+            fileName = null;
+        }
+
         // 1. 查找或创建会话（立即提交）
         ChatSession session = findOrCreateSession(userId, chatId, question);
 
         // 2. 持久化用户消息，并将会话消息数 +1
-        saveMessage(session.getId(), userId, "user", question, 0);
+        saveMessage(session.getId(), userId, "user", question, 0, fileUrl, fileName);
         session.setMessageCount(session.getMessageCount() + 1);
         session.setUpdatedAt(LocalDateTime.now());
         chatSessionMapper.updateById(session);
@@ -67,6 +77,8 @@ public class ChatServiceImpl extends ServiceImpl<ChatSessionMapper, ChatSession>
         task.setSessionId(session.getId());
         task.setUserId(userId);
         task.setQuestion(question);
+        task.setFileUrl(fileUrl);
+        task.setFileName(fileName);
         task.setStatus(0);
         chatTaskMapper.insert(task);
 
@@ -150,6 +162,8 @@ public class ChatServiceImpl extends ServiceImpl<ChatSessionMapper, ChatSession>
             msgVO.setId(m.getId());
             msgVO.setRole(m.getRole());
             msgVO.setContent(m.getContent());
+            msgVO.setFileUrl(m.getFileUrl());
+            msgVO.setFileName(m.getFileName());
             msgVO.setCreatedAt(m.getCreatedAt());
             return msgVO;
         }).collect(Collectors.toList()));
@@ -193,14 +207,39 @@ public class ChatServiceImpl extends ServiceImpl<ChatSessionMapper, ChatSession>
         return session;
     }
 
-    private void saveMessage(Long sessionId, Long userId, String role, String content, int tokensUsed) {
+    private void saveMessage(Long sessionId, Long userId, String role, String content, int tokensUsed,
+                             String fileUrl, String fileName) {
         ChatMessage msg = new ChatMessage();
         msg.setSessionId(sessionId);
         msg.setUserId(userId);
         msg.setRole(role);
         msg.setContent(content);
+        msg.setFileUrl(fileUrl);
+        msg.setFileName(fileName);
         msg.setTokensUsed(tokensUsed);
         chatMessageMapper.insert(msg);
+    }
+
+    /**
+     * 校验问答附件 URL 必须为本系统 COS 公网前缀，防止任意 URL 传入 FastGPT
+     */
+    private void validateAttachment(ChatAskDTO dto) {
+        String url = dto.getFileUrl();
+        if (url == null || url.isBlank()) {
+            return;
+        }
+        if (dto.getFileName() == null || dto.getFileName().isBlank()) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "携带附件时必须提供 fileName");
+        }
+        String base = tencentCosProperties.getPublicBaseUrl();
+        if (base == null || base.isBlank()) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "服务端未配置 COS 公网地址，无法校验附件");
+        }
+        base = base.replaceAll("/+$", "");
+        String normalized = url.strip();
+        if (!normalized.startsWith(base + "/")) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "附件地址不在允许的存储空间内");
+        }
     }
 
     private ChatSession getSessionByUserAndChatId(Long userId, String chatId) {

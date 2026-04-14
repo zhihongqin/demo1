@@ -26,6 +26,7 @@ public class LegalQaAgent {
 
             【角色与能力】
             你拥有丰富的国际法律知识，熟悉中国、日本、美国等主要司法体系的裁判逻辑。
+            用户可能通过附件提供 PDF、Word、TXT 等法律文书，请结合附件全文与用户问题作答。
             你可以综合利用以下两类工具充分获取信息：
             - 知识库检索：收录了真实法律案例（含案号、法院、判决结论）以及中华人民共和国\
             民法典、刑法、劳动合同法、民事诉讼法、宪法等法律法规原文
@@ -51,16 +52,25 @@ public class LegalQaAgent {
             """;
 
     /**
-     * 回答用户的法律问题（支持多轮对话）
+     * 回答用户的法律问题（支持多轮对话；可选附件走 FastGPT file_url）
      *
      * @param question 用户提问
      * @param chatId   会话ID，传入相同值可保持上下文；为 null 时为单轮问答
+     * @param fileUrl  附件公网 URL，可为 null
+     * @param fileName 附件文件名（含扩展名），可为 null
      * @return AI 回答文本
      */
-    public String ask(String question, String chatId) {
-        log.info("法律问答请求: chatId={}, question={}", chatId,
-                question.length() > 50 ? question.substring(0, 50) + "..." : question);
+    public String ask(String question, String chatId, String fileUrl, String fileName) {
+        String qPreview = question.length() > 50 ? question.substring(0, 50) + "..." : question;
         try {
+            if (fileUrl != null && !fileUrl.isBlank()) {
+                String name = (fileName != null && !fileName.isBlank()) ? fileName : "attachment.pdf";
+                log.info("法律问答（含附件）: chatId={}, fileName={}, question={}", chatId, name, qPreview);
+                String answer = fastGptClient.chatWithFile(apiKey, SYSTEM_PROMPT, fileUrl.strip(), name, question, chatId);
+                log.info("法律问答完成: chatId={}, answerLength={}", chatId, answer.length());
+                return answer;
+            }
+            log.info("法律问答请求: chatId={}, question={}", chatId, qPreview);
             String answer = fastGptClient.chat(apiKey, SYSTEM_PROMPT, question, chatId);
             log.info("法律问答完成: chatId={}, answerLength={}", chatId, answer.length());
             return answer;

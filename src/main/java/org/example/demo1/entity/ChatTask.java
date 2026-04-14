@@ -24,6 +24,12 @@ public class ChatTask {
     /** 用户提问 */
     private String question;
 
+    /** 附件 COS 公网 URL（可选） */
+    private String fileUrl;
+
+    /** 附件原始文件名（可选） */
+    private String fileName;
+
     /** AI 回答（完成后写入） */
     private String answer;
 

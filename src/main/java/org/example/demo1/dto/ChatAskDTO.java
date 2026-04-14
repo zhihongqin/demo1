@@ -21,4 +21,12 @@ public class ChatAskDTO {
     @Size(max = 64, message = "会话ID过长")
     @Pattern(regexp = "^[a-zA-Z0-9_\\-]*$", message = "会话ID格式不合法")
     private String chatId;
+
+    /** 附件 COS 公网 URL（须为本系统配置的存储桶域名下地址） */
+    @Size(max = 768, message = "附件地址过长")
+    private String fileUrl;
+
+    /** 附件原始文件名 */
+    @Size(max = 255, message = "附件文件名过长")
+    private String fileName;
 }

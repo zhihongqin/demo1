@@ -81,6 +81,13 @@
       <version>5.8.25</version>
     </dependency>
 
+    <!-- 腾讯云 COS（智能问答附件上传） -->
+    <dependency>
+      <groupId>com.qcloud</groupId>
+      <artifactId>cos_api</artifactId>
+      <version>5.6.227</version>
+    </dependency>
+
     <!-- Lombok -->
     <dependency>
       <groupId>org.projectlombok</groupId>

@@ -35,6 +35,9 @@ public class ChatSessionVO {
         /** user / assistant */
         private String role;
         private String content;
+        /** 用户消息附件（可选） */
+        private String fileUrl;
+        private String fileName;
         private LocalDateTime createdAt;
     }
 }

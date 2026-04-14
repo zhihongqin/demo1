@@ -24,6 +24,12 @@ public class ChatMessage {
     /** 消息内容 */
     private String content;
 
+    /** 用户消息附件 URL（可选） */
+    private String fileUrl;
+
+    /** 用户消息附件名（可选） */
+    private String fileName;
+
     /** 本次请求消耗的 token 数（仅 assistant 消息有效） */
     private Integer tokensUsed;
 
