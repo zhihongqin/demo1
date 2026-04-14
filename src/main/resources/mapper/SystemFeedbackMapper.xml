@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.example.demo1.mapper.SystemFeedbackMapper">
+
+    <resultMap id="FeedbackAdminVOMap" type="org.example.demo1.vo.FeedbackAdminVO">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="user_nickname" property="userNickname"/>
+        <result column="content" property="content"/>
+        <result column="contact" property="contact"/>
+        <result column="client_info" property="clientInfo"/>
+        <result column="status" property="status"/>
+        <result column="admin_reply" property="adminReply"/>
+        <result column="processed_at" property="processedAt"/>
+        <result column="processed_by" property="processedBy"/>
+        <result column="processor_nickname" property="processorNickname"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <select id="selectAdminPage" resultMap="FeedbackAdminVOMap">
+        SELECT
+            f.id,
+            f.user_id,
+            u.nickname AS user_nickname,
+            f.content,
+            f.contact,
+            f.client_info,
+            f.status,
+            f.admin_reply,
+            f.processed_at,
+            f.processed_by,
+            pu.nickname AS processor_nickname,
+            f.created_at
+        FROM system_feedback f
+        LEFT JOIN `user` u ON f.user_id = u.id AND (u.is_deleted = 0 OR u.is_deleted IS NULL)
+        LEFT JOIN `user` pu ON f.processed_by = pu.id
+        <where>
+            <if test="status != null">
+                AND f.status = #{status}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND f.content LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+        </where>
+        ORDER BY f.created_at DESC
+    </select>
+</mapper>
