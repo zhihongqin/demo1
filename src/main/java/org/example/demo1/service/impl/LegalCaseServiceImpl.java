@@ -54,6 +54,7 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
     private final CaseScoreMapper caseScoreMapper;
     private final SearchHistoryMapper searchHistoryMapper;
     private final BrowseHistoryMapper browseHistoryMapper;
+    private final CaseUserNoteMapper caseUserNoteMapper;
 
     @Override
     public IPage<CaseListVO> queryCases(CaseQueryDTO dto, Long userId, boolean isAdmin) {
@@ -119,6 +120,16 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
             vo.setIsFavorited(favorite != null);
         } else {
             vo.setIsFavorited(false);
+        }
+
+        if (userId != null) {
+            long noteCount = caseUserNoteMapper.selectCount(
+                    new LambdaQueryWrapper<CaseUserNote>()
+                            .eq(CaseUserNote::getUserId, userId)
+                            .eq(CaseUserNote::getCaseId, caseId));
+            vo.setHasNote(noteCount > 0);
+        } else {
+            vo.setHasNote(false);
         }
 
         // 摘要信息（取最新一条已完成的记录）
@@ -390,6 +401,68 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
                 new LambdaQueryWrapper<BrowseHistory>()
                         .eq(BrowseHistory::getUserId, userId)
                         .in(BrowseHistory::getId, ids));
+    }
+
+    @Override
+    public CaseNoteVO getMyCaseNote(Long caseId, Long userId) {
+        LegalCase legalCase = getById(caseId);
+        if (legalCase == null) {
+            throw new BusinessException(ResultCode.CASE_NOT_EXIST);
+        }
+        CaseUserNote existing = caseUserNoteMapper.selectOne(
+                new LambdaQueryWrapper<CaseUserNote>()
+                        .eq(CaseUserNote::getUserId, userId)
+                        .eq(CaseUserNote::getCaseId, caseId));
+        CaseNoteVO vo = new CaseNoteVO();
+        if (existing != null) {
+            vo.setContent(existing.getContent());
+            vo.setUpdatedAt(existing.getUpdatedAt());
+        } else {
+            vo.setContent("");
+            vo.setUpdatedAt(null);
+        }
+        return vo;
+    }
+
+    @Override
+    @Transactional
+    public void saveMyCaseNote(Long caseId, Long userId, String content) {
+        LegalCase legalCase = getById(caseId);
+        if (legalCase == null) {
+            throw new BusinessException(ResultCode.CASE_NOT_EXIST);
+        }
+        String text = content == null ? "" : content.trim();
+        if (text.length() > 10000) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "笔记内容不能超过10000字");
+        }
+        CaseUserNote existing = caseUserNoteMapper.selectOne(
+                new LambdaQueryWrapper<CaseUserNote>()
+                        .eq(CaseUserNote::getUserId, userId)
+                        .eq(CaseUserNote::getCaseId, caseId));
+        if (text.isEmpty()) {
+            if (existing != null) {
+                caseUserNoteMapper.deleteById(existing.getId());
+            }
+            return;
+        }
+        if (existing != null) {
+            existing.setContent(text);
+            caseUserNoteMapper.updateById(existing);
+        } else {
+            CaseUserNote n = new CaseUserNote();
+            n.setUserId(userId);
+            n.setCaseId(caseId);
+            n.setContent(text);
+            caseUserNoteMapper.insert(n);
+        }
+    }
+
+    @Override
+    public IPage<CaseNoteListItemVO> getMyCaseNotes(Long userId, Integer pageNum, Integer pageSize) {
+        int pn = pageNum == null || pageNum < 1 ? 1 : pageNum;
+        int ps = pageSize == null || pageSize < 1 ? 10 : Math.min(pageSize, 50);
+        Page<CaseNoteListItemVO> page = new Page<>(pn, ps);
+        return caseUserNoteMapper.selectMyNotesPage(page, userId);
     }
 
     @Override

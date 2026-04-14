@@ -49,6 +49,9 @@ public class CaseDetailVO {
     /** 当前用户是否已收藏 */
     private Boolean isFavorited;
 
+    /** 当前用户是否对该案例有笔记（未登录为 false） */
+    private Boolean hasNote;
+
     /** 摘要提取结果 */
     private CaseSummaryVO summary;
 

@@ -9,6 +9,8 @@ import org.example.demo1.entity.LegalCase;
 import org.example.demo1.vo.BrowseHistoryVO;
 import org.example.demo1.vo.CaseDetailVO;
 import org.example.demo1.vo.CaseListVO;
+import org.example.demo1.vo.CaseNoteListItemVO;
+import org.example.demo1.vo.CaseNoteVO;
 import org.example.demo1.vo.CaseScoreRecordVO;
 import org.example.demo1.vo.CaseSummaryRecordVO;
 import org.example.demo1.vo.CaseTranslationRecordVO;
@@ -121,6 +123,21 @@ public interface LegalCaseService extends IService<LegalCase> {
      * 删除浏览记录（支持批量）
      */
     void deleteBrowseHistory(Long userId, List<Long> ids);
+
+    /**
+     * 获取当前用户对指定案例的笔记（无则 content 为空）
+     */
+    CaseNoteVO getMyCaseNote(Long caseId, Long userId);
+
+    /**
+     * 保存或更新笔记；正文为空则删除笔记
+     */
+    void saveMyCaseNote(Long caseId, Long userId, String content);
+
+    /**
+     * 分页：我的案例笔记列表（含案例标题、摘要预览）
+     */
+    IPage<CaseNoteListItemVO> getMyCaseNotes(Long userId, Integer pageNum, Integer pageSize);
 
     /**
      * 代理获取案例原始 PDF 文书字节流（用于小程序绕过日本法院防盗链）

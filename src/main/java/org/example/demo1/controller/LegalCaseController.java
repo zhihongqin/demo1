@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.demo1.common.exception.BusinessException;
 import org.example.demo1.common.result.Result;
 import org.example.demo1.common.result.ResultCode;
+import org.example.demo1.dto.CaseNoteSaveDTO;
 import org.example.demo1.dto.CaseQueryDTO;
 import org.example.demo1.dto.CaseSaveDTO;
 import org.example.demo1.dto.CaseUpdateDTO;
@@ -15,6 +16,8 @@ import org.example.demo1.util.UserContext;
 import org.example.demo1.vo.BrowseHistoryVO;
 import org.example.demo1.vo.CaseDetailVO;
 import org.example.demo1.vo.CaseListVO;
+import org.example.demo1.vo.CaseNoteListItemVO;
+import org.example.demo1.vo.CaseNoteVO;
 import org.example.demo1.vo.CaseScoreRecordVO;
 import org.example.demo1.vo.CaseSummaryRecordVO;
 import org.example.demo1.vo.CaseTranslationRecordVO;
@@ -315,6 +318,40 @@ public class LegalCaseController {
         Long userId = requireLogin();
         legalCaseService.deleteBrowseHistory(userId, ids);
         return Result.success("浏览记录已删除");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 登录用户 - 案例笔记（每用户每案例一条）
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * 获取当前用户对某案例的笔记。
+     */
+    @GetMapping("/{id}/note")
+    public Result<CaseNoteVO> getMyCaseNote(@PathVariable Long id) {
+        Long userId = requireLogin();
+        return Result.success(legalCaseService.getMyCaseNote(id, userId));
+    }
+
+    /**
+     * 保存或更新笔记；正文为空或仅空白则删除该笔记。
+     */
+    @PutMapping("/{id}/note")
+    public Result<Void> saveMyCaseNote(@PathVariable Long id, @Valid @RequestBody CaseNoteSaveDTO dto) {
+        Long userId = requireLogin();
+        legalCaseService.saveMyCaseNote(id, userId, dto.getContent());
+        return Result.success();
+    }
+
+    /**
+     * 我的案例笔记列表（含案例标题、内容摘要）。
+     */
+    @GetMapping("/notes/list")
+    public Result<IPage<CaseNoteListItemVO>> listMyCaseNotes(
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "10") Integer pageSize) {
+        Long userId = requireLogin();
+        return Result.success(legalCaseService.getMyCaseNotes(userId, pageNum, pageSize));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
