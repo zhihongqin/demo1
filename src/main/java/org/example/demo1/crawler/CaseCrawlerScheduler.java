@@ -23,6 +23,6 @@ public class CaseCrawlerScheduler {
     @Scheduled(cron = "0 0 2 * * MON")
     public void scheduledCrawl() {
         log.info("[定时采集] 触发每日定时采集任务");
-        crawlerService.crawlAll();
+        crawlerService.crawlAll(null, null, true);
     }
 }

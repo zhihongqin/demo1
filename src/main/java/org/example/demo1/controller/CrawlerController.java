@@ -1,11 +1,16 @@
 package org.example.demo1.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.demo1.common.result.Result;
 import org.example.demo1.crawler.CaseCrawlerService;
 import org.example.demo1.crawler.PythonCrawlerService;
 import org.example.demo1.dto.JapanCrawlerParamDTO;
+import org.example.demo1.entity.CrawlJobRecord;
+import org.example.demo1.service.CrawlJobRecordService;
+import org.example.demo1.util.UserContext;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,33 +30,40 @@ public class CrawlerController {
 
     private final CaseCrawlerService crawlerService;
     private final PythonCrawlerService pythonCrawlerService;
+    private final CrawlJobRecordService crawlJobRecordService;
+    private final ObjectMapper objectMapper;
 
     // ─── CourtListener 采集（Java 实现）───────────────────────────────────
 
     /**
      * 启动 CourtListener 全量采集（遍历所有关键词，异步执行）
-     * POST /api/admin/crawler/start
+     * POST /api/admin/crawler/start?maxPages=10
+     *
+     * @param maxPages 每个关键词最多爬取的页数；不传则使用配置 courtlistener.max-pages
      */
     @PostMapping("/start")
-    public Result<String> startCrawl() {
+    public Result<String> startCrawl(@RequestParam(required = false) Integer maxPages) {
         if (crawlerService.isRunning()) {
             return Result.fail(400, "采集任务正在运行中，请勿重复触发");
         }
-        crawlerService.crawlAll();
+        crawlerService.crawlAll(maxPages, UserContext.getUserId(), false);
         return Result.success("全量采集任务已启动（异步执行中）");
     }
 
     /**
      * 针对单个关键词采集（异步，立即返回，后台执行）
-     * POST /api/admin/crawler/query?keyword=Huawei
+     * POST /api/admin/crawler/query?keyword=Huawei&maxPages=10
+     *
+     * @param maxPages 该关键词最多爬取的页数；不传则使用配置 courtlistener.max-pages
      */
     @PostMapping("/query")
-    public Result<String> crawlByKeyword(@RequestParam String keyword) {
+    public Result<String> crawlByKeyword(@RequestParam String keyword,
+                                         @RequestParam(required = false) Integer maxPages) {
         if (crawlerService.isRunning()) {
             return Result.fail(400, "采集任务正在运行中，请稍后再试");
         }
-        log.info("[手动采集] 关键词: {}", keyword);
-        crawlerService.crawlByQueryAsync(keyword);
+        log.info("[手动采集] 关键词: {}, maxPages: {}", keyword, maxPages);
+        crawlerService.crawlByQueryAsync(keyword, maxPages, UserContext.getUserId());
         return Result.success("关键词「" + keyword + "」采集任务已启动（异步执行中）");
     }
 
@@ -175,7 +187,26 @@ public class CrawlerController {
         }
         List<String> argList = params.toArgList();
         log.info("[日本裁判所爬虫] 启动参数: {}", argList);
-        pythonCrawlerService.startWithArgs(CRAWLER, argList);
+
+        final String paramsJson;
+        try {
+            paramsJson = objectMapper.writeValueAsString(params);
+        } catch (JsonProcessingException e) {
+            return Result.fail(400, "参数序列化失败");
+        }
+        Long jobId = crawlJobRecordService.startJob(
+                CrawlJobRecord.TYPE_JAPAN_COURTS, paramsJson, UserContext.getUserId());
+        pythonCrawlerService.startWithArgs(CRAWLER, argList, exitCode -> {
+            if (exitCode == 0) {
+                crawlJobRecordService.finishSuccess(jobId, null);
+            } else {
+                String msg = exitCode == -1
+                        ? "爬虫进程未启动（脚本不存在或启动失败）"
+                        : "进程退出码: " + exitCode;
+                crawlJobRecordService.finishFailure(jobId, msg);
+            }
+        });
+
         return Result.success(
             "日本裁判所爬虫已启动（异步执行中）\n关键词: " + params.getQuery1()
             + "，最大页数: " + params.getMaxPages()

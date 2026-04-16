@@ -40,3 +40,39 @@ ModuleNotFoundError: No module named 'mysql'
 [japan_courts] 第 1 页完成，本页入库 24 条，累计 24 条
 [japan_courts] 全部完成，共入库 24 条
 [DB] 数据库连接已关闭
+[DB] 数据库连接成功
+[japan_courts] 开始爬取 | query1='中華' query2='' max_pages=1
+[japan_courts] ── 第 1 页（offset=0）──
+[跳过] 已存在: https://www.courts.go.jp/hanrei/95698/detail4/index.html
+[入库] 損害賠償請求事件
+[入库] 審決取消請求事件
+[入库] 審決取消請求事件
+[入库] 審決取消請求事件
+[入库] 審決取消請求事件
+[跳过] 已存在: https://www.courts.go.jp/hanrei/94374/detail7/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/95770/detail4/index.html
+[入库] 損害賠償請求事件
+[入库] 損害賠償請求事件
+[入库] 損害賠償請求事件
+[入库] 損害賠償請求事件
+[入库] 損害賠償請求事件
+[跳过] 已存在: https://www.courts.go.jp/hanrei/93959/detail4/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/95397/detail5/index.html
+[入库] 不正競争防止法違反
+[入库] 審決取消請求事件
+[跳过] 已存在: https://www.courts.go.jp/hanrei/95308/detail5/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/93968/detail4/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/93623/detail4/index.html
+[入库] 発信者情報開示命令申立却下決定に対する即時抗告
+[跳过] 已存在: https://www.courts.go.jp/hanrei/93100/detail4/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/92993/detail4/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/92905/detail4/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/92924/detail7/index.html
+[入库] 殺人
+[跳过] 已存在: https://www.courts.go.jp/hanrei/93526/detail5/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/92800/detail7/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/93431/detail5/index.html
+[跳过] 已存在: https://www.courts.go.jp/hanrei/92580/detail7/index.html
+[japan_courts] 第 1 页完成，本页入库 14 条，累计 14 条
+[japan_courts] 全部完成，共入库 14 条
+[DB] 数据库连接已关闭

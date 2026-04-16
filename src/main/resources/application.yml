@@ -98,7 +98,7 @@ courtlistener:
   base-url: https://www.courtlistener.com/api/rest/v4
   api-token: ${COURT_LISTENER_TOKEN:44df55326f6318cfb5435d2df417c375a413c39f}
   # 每个关键词最多爬取的页数（每页20条）
-  max-pages: 10
+  max-pages: 2
   # 请求间隔（毫秒）
   request-delay-ms: 500
   # 二次过滤阈值（全文中涉华关键词命中数 >= 此值才入库）

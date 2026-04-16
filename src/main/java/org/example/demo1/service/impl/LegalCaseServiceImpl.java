@@ -189,8 +189,8 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
 
         saveOrUpdate(legalCase);
 
-        // 异步触发AI处理
-        caseAgentService.processCase(legalCase.getId());
+//        // 异步触发AI处理
+//        caseAgentService.processCase(legalCase.getId());
 
         return legalCase.getId();
     }

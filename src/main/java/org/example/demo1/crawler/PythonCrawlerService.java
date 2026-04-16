@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * Python 爬虫进程管理服务
@@ -39,7 +40,7 @@ public class PythonCrawlerService {
      */
     @Async
     public void start(String crawlerName) {
-        startWithArgs(crawlerName, List.of());
+        startWithArgs(crawlerName, List.of(), null);
     }
 
     /**
@@ -50,6 +51,14 @@ public class PythonCrawlerService {
      */
     @Async
     public void startWithArgs(String crawlerName, List<String> extraArgs) {
+        startWithArgs(crawlerName, extraArgs, null);
+    }
+
+    /**
+     * @param onExit 进程结束时回调，参数为 exitCode；启动失败或脚本不存在时回调 -1
+     */
+    @Async
+    public void startWithArgs(String crawlerName, List<String> extraArgs, Consumer<Integer> onExit) {
         if (isRunning(crawlerName)) {
             log.warn("[Python爬虫] {} 已在运行中，忽略本次启动请求", crawlerName);
             return;
@@ -59,6 +68,7 @@ public class PythonCrawlerService {
         File scriptFile = new File(scriptPath);
         if (!scriptFile.exists()) {
             log.error("[Python爬虫] 脚本文件不存在: {}", scriptFile.getAbsolutePath());
+            invokeOnExit(onExit, -1);
             return;
         }
 
@@ -86,14 +96,27 @@ public class PythonCrawlerService {
             log.info("[Python爬虫] {} 已启动，pid={}, args={}, 日志={}",
                     crawlerName, process.pid(), extraArgs, logFile.getAbsolutePath());
 
-            // 进程结束后自动从 map 中移除
             process.onExit().thenAccept(p -> {
                 runningProcesses.remove(crawlerName);
-                log.info("[Python爬虫] {} 已结束，exitCode={}", crawlerName, p.exitValue());
+                int code = p.exitValue();
+                log.info("[Python爬虫] {} 已结束，exitCode={}", crawlerName, code);
+                invokeOnExit(onExit, code);
             });
 
         } catch (IOException e) {
             log.error("[Python爬虫] {} 启动失败: {}", crawlerName, e.getMessage());
+            invokeOnExit(onExit, -1);
+        }
+    }
+
+    private static void invokeOnExit(Consumer<Integer> onExit, int code) {
+        if (onExit == null) {
+            return;
+        }
+        try {
+            onExit.accept(code);
+        } catch (Exception e) {
+            log.warn("[Python爬虫] onExit 回调异常: {}", e.getMessage());
         }
     }
 

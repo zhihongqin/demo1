@@ -1,12 +1,16 @@
 package org.example.demo1.crawler;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.demo1.agent.CaseAgentService;
+import org.example.demo1.entity.CrawlJobRecord;
 import org.example.demo1.entity.LegalCase;
 import org.example.demo1.mapper.LegalCaseMapper;
+import org.example.demo1.service.CrawlJobRecordService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -17,7 +21,9 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -56,9 +62,15 @@ public class CaseCrawlerService {
     private final ChinaRelatedFilter filter;
     private final LegalCaseMapper legalCaseMapper;
     private final CaseAgentService caseAgentService;
+    private final CrawlJobRecordService crawlJobRecordService;
+    private final ObjectMapper objectMapper;
 
+    /** 配置文件中的默认每关键词最大页数（请求未指定时使用） */
     @Value("${courtlistener.max-pages:10}")
     private int maxPages;
+
+    /** 管理员单次任务允许的上限，防止误填过大 */
+    private static final int MAX_PAGES_HARD_CAP = 10;
 
     @Value("${courtlistener.request-delay-ms:500}")
     private long requestDelayMs;
@@ -67,23 +79,47 @@ public class CaseCrawlerService {
     private int filterThreshold;
 
     /**
+     * 解析本次任务每关键词最大页数：未传或非法则用配置 {@link #maxPages}，并限制在 {@link #MAX_PAGES_HARD_CAP} 以内。
+     */
+    private int resolveMaxPagesPerKeyword(Integer override) {
+        int fallback = maxPages > 0 ? maxPages : 10;
+        if (override == null || override < 1) {
+            return fallback;
+        }
+        return Math.min(override, MAX_PAGES_HARD_CAP);
+    }
+
+    /**
      * 异步启动全量采集
      * 遍历所有搜索关键词，逐页采集并过滤涉华案例入库
+     *
+     * @param maxPagesOverride 每个关键词最多爬取的页数；为 null 时使用配置文件 courtlistener.max-pages
+     * @param startedBy        触发人用户 ID，定时任务传 null
+     * @param scheduled          true 表示定时任务触发（写入 params_json.trigger）
      */
     @Async
-    public void crawlAll() {
+    public void crawlAll(Integer maxPagesOverride, Long startedBy, boolean scheduled) {
         if (!running.compareAndSet(false, true)) {
             log.warn("[采集] 任务已在运行中，跳过本次触发");
             return;
         }
-        log.info("[采集] 开始全量采集，共 {} 个搜索词，每词最多 {} 页", searchQueries.size(), maxPages);
+        int perKeywordMax = resolveMaxPagesPerKeyword(maxPagesOverride);
+        Long jobId = crawlJobRecordService.startJob(
+                CrawlJobRecord.TYPE_COURTLISTENER,
+                buildFullCrawlParamsJson(perKeywordMax, scheduled),
+                startedBy);
+        log.info("[采集] 开始全量采集，共 {} 个搜索词，每词最多 {} 页，jobId={}", searchQueries.size(), perKeywordMax, jobId);
         int totalSaved = 0;
         try {
             for (String query : searchQueries) {
-                int saved = crawlByQuery(query);
+                int saved = crawlByQuery(query, perKeywordMax);
                 totalSaved += saved;
                 sleep(2000);
             }
+            crawlJobRecordService.finishSuccess(jobId, totalSaved);
+        } catch (Exception e) {
+            log.error("[采集] 全量采集异常: {}", e.getMessage(), e);
+            crawlJobRecordService.finishFailure(jobId, e.getMessage() != null ? e.getMessage() : "未知错误");
         } finally {
             running.set(false);
             log.info("[采集] 全量采集完成，本次共入库 {} 条案例", totalSaved);
@@ -94,20 +130,56 @@ public class CaseCrawlerService {
      * 针对单个关键词异步采集（立即返回，后台执行）
      * 与 crawlAll 共享 running 状态标志，防止并发冲突
      *
-     * @param query 搜索关键词
+     * @param query              搜索关键词
+     * @param maxPagesOverride   该关键词最多爬取页数；为 null 时使用配置 courtlistener.max-pages
+     * @param startedBy          触发人用户 ID
      */
     @Async
-    public void crawlByQueryAsync(String query) {
+    public void crawlByQueryAsync(String query, Integer maxPagesOverride, Long startedBy) {
         if (!running.compareAndSet(false, true)) {
             log.warn("[采集] 任务已在运行中，跳过关键词 '{}' 的采集", query);
             return;
         }
-        log.info("[手动采集] 异步开始，关键词: '{}'", query);
+        int perKeywordMax = resolveMaxPagesPerKeyword(maxPagesOverride);
+        Long jobId = crawlJobRecordService.startJob(
+                CrawlJobRecord.TYPE_COURTLISTENER,
+                buildSingleCrawlParamsJson(query, perKeywordMax),
+                startedBy);
+        log.info("[手动采集] 异步开始，关键词: '{}'，最多 {} 页，jobId={}", query, perKeywordMax, jobId);
         try {
-            int saved = crawlByQuery(query);
+            int saved = crawlByQuery(query, perKeywordMax);
             log.info("[手动采集] 关键词 '{}' 采集完成，入库 {} 条", query, saved);
+            crawlJobRecordService.finishSuccess(jobId, saved);
+        } catch (Exception e) {
+            log.error("[手动采集] 关键词 '{}' 异常: {}", query, e.getMessage(), e);
+            crawlJobRecordService.finishFailure(jobId, e.getMessage() != null ? e.getMessage() : "未知错误");
         } finally {
             running.set(false);
+        }
+    }
+
+    private String buildFullCrawlParamsJson(int perKeywordMax, boolean scheduled) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("mode", "FULL");
+        m.put("maxPagesPerKeyword", perKeywordMax);
+        m.put("keywordCount", searchQueries.size());
+        m.put("trigger", scheduled ? "SCHEDULE" : "MANUAL");
+        try {
+            return objectMapper.writeValueAsString(m);
+        } catch (JsonProcessingException e) {
+            return "{\"mode\":\"FULL\"}";
+        }
+    }
+
+    private String buildSingleCrawlParamsJson(String keyword, int perKeywordMax) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("mode", "SINGLE");
+        m.put("keyword", keyword);
+        m.put("maxPages", perKeywordMax);
+        try {
+            return objectMapper.writeValueAsString(m);
+        } catch (JsonProcessingException e) {
+            return "{\"mode\":\"SINGLE\"}";
         }
     }
 
@@ -118,11 +190,22 @@ public class CaseCrawlerService {
      * @return 本次入库数量
      */
     public int crawlByQuery(String query) {
-        log.info("[采集] 开始搜索关键词: '{}'", query);
+        return crawlByQuery(query, resolveMaxPagesPerKeyword(null));
+    }
+
+    /**
+     * 针对单个关键词采集（同步）
+     *
+     * @param query           搜索关键词
+     * @param maxPagesLimit   该关键词最多请求的列表页数（已解析后的正整数）
+     * @return 本次入库数量
+     */
+    public int crawlByQuery(String query, int maxPagesLimit) {
+        log.info("[采集] 开始搜索关键词: '{}'（最多 {} 页）", query, maxPagesLimit);
         int savedCount = 0;
         String nextUrl = null;
 
-        for (int page = 1; page <= maxPages; page++) {
+        for (int page = 1; page <= maxPagesLimit; page++) {
             JsonNode data = apiClient.searchOpinions(query, nextUrl);
             if (data == null) {
                 log.warn("[采集] 关键词 '{}' 第 {} 页请求失败，停止", query, page);
@@ -216,9 +299,9 @@ public class CaseCrawlerService {
         legalCaseMapper.insert(legalCase);
         log.info("[入库] {}", caseName);
 
-        // 入库后异步触发 AI 处理（翻译 + 摘要 + 评分）
-        caseAgentService.processCase(legalCase.getId());
-        log.info("[AI处理] 已触发异步AI处理: caseId={}", legalCase.getId());
+//        // 入库后异步触发 AI 处理（翻译 + 摘要 + 评分）
+//        caseAgentService.processCase(legalCase.getId());
+//        log.info("[AI处理] 已触发异步AI处理: caseId={}", legalCase.getId());
         return true;
     }
 
