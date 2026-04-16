@@ -13,6 +13,7 @@ import org.example.demo1.service.CrawlJobRecordService;
 import org.example.demo1.util.UserContext;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -185,9 +186,6 @@ public class CrawlerController {
         if (params.getQuery1() == null || params.getQuery1().isBlank()) {
             return Result.fail(400, "第1检索关键词（query1）不能为空");
         }
-        List<String> argList = params.toArgList();
-        log.info("[日本裁判所爬虫] 启动参数: {}", argList);
-
         final String paramsJson;
         try {
             paramsJson = objectMapper.writeValueAsString(params);
@@ -196,15 +194,21 @@ public class CrawlerController {
         }
         Long jobId = crawlJobRecordService.startJob(
                 CrawlJobRecord.TYPE_JAPAN_COURTS, paramsJson, UserContext.getUserId());
+
+        List<String> argList = new ArrayList<>(params.toArgList());
+        argList.add("--crawl-job-id");
+        argList.add(String.valueOf(jobId));
+        log.info("[日本裁判所爬虫] 启动参数: {}", argList);
+
+        // 正常结束时由 Python 直接 UPDATE crawl_job_record；此处仅处理进程未启动或非 0 退出（Python 未写回时兜底）
         pythonCrawlerService.startWithArgs(CRAWLER, argList, exitCode -> {
             if (exitCode == 0) {
-                crawlJobRecordService.finishSuccess(jobId, null);
-            } else {
-                String msg = exitCode == -1
-                        ? "爬虫进程未启动（脚本不存在或启动失败）"
-                        : "进程退出码: " + exitCode;
-                crawlJobRecordService.finishFailure(jobId, msg);
+                return;
             }
+            String msg = exitCode == -1
+                    ? "爬虫进程未启动（脚本不存在或启动失败）"
+                    : "进程异常退出，退出码: " + exitCode;
+            crawlJobRecordService.finishFailure(jobId, msg);
         });
 
         return Result.success(

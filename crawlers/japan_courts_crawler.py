@@ -22,6 +22,10 @@ import re
 import sys
 import time
 import argparse
+from datetime import datetime
+from typing import Optional
+
+import mysql.connector
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -67,9 +71,83 @@ class JapanCourtsCrawler(BaseCrawler):
         self.args = args
         self.session = _make_session()
 
+    # ─── crawl_job_record 回写（与 Java 端 status 一致：1=成功 2=失败）────────────────
+
+    def _finish_crawl_job_record(
+        self, job_id: int, success: bool, saved_count: Optional[int], error: Optional[str]
+    ):
+        """在 self.conn 已连接时调用。"""
+        cur = self.conn.cursor()
+        now = datetime.now()
+        if success:
+            cur.execute(
+                """
+                UPDATE crawl_job_record
+                SET status=%s, saved_count=%s, finished_at=%s, error_message=NULL
+                WHERE id=%s
+                """,
+                (1, saved_count, now, job_id),
+            )
+        else:
+            err = (error or "")[:1000] if error else None
+            cur.execute(
+                """
+                UPDATE crawl_job_record
+                SET status=%s, saved_count=NULL, finished_at=%s, error_message=%s
+                WHERE id=%s
+                """,
+                (2, now, err, job_id),
+            )
+        self.conn.commit()
+        cur.close()
+        print(
+            f"[{SOURCE_NAME}] 已更新 crawl_job_record id={job_id} "
+            f"status={'成功' if success else '失败'} saved_count={saved_count}"
+        )
+
+    def _try_finish_crawl_job_failed(self, job_id: int, error: str):
+        """异常时写回失败；优先用当前连接，否则临时连接数据库。"""
+        err = (error or "")[:1000]
+        now = datetime.now()
+        try:
+            if self.conn and self.conn.is_connected():
+                cur = self.conn.cursor()
+                cur.execute(
+                    """
+                    UPDATE crawl_job_record
+                    SET status=2, saved_count=NULL, finished_at=%s, error_message=%s
+                    WHERE id=%s
+                    """,
+                    (now, err, job_id),
+                )
+                self.conn.commit()
+                cur.close()
+                print(f"[{SOURCE_NAME}] 已更新 crawl_job_record id={job_id} 为失败")
+                return
+        except Exception as ex:
+            print(f"[警告] 使用当前连接写回 crawl_job_record 失败: {ex}")
+        try:
+            c = mysql.connector.connect(**self.db_config)
+            cur = c.cursor()
+            cur.execute(
+                """
+                UPDATE crawl_job_record
+                SET status=2, saved_count=NULL, finished_at=%s, error_message=%s
+                WHERE id=%s
+                """,
+                (now, err, job_id),
+            )
+            c.commit()
+            cur.close()
+            c.close()
+            print(f"[{SOURCE_NAME}] 已更新 crawl_job_record id={job_id} 为失败（临时连接）")
+        except Exception as ex:
+            print(f"[警告] 无法写回 crawl_job_record: {ex}")
+
     # ─── 主流程 ───────────────────────────────────────────────────────────────
 
     def run(self):
+        job_id = getattr(self.args, "crawl_job_id", None)
         query1 = self.args.query1 or ""
         query2 = self.args.query2 or ""
         max_pages = max(1, self.args.max_pages or 50)
@@ -79,55 +157,63 @@ class JapanCourtsCrawler(BaseCrawler):
         total_saved = 0
         page = 1
 
-        while page <= max_pages:
-            offset = (page - 1) * PAGE_SIZE
-            print(f"[{SOURCE_NAME}] ── 第 {page} 页（offset={offset}）──")
+        try:
+            while page <= max_pages:
+                offset = (page - 1) * PAGE_SIZE
+                print(f"[{SOURCE_NAME}] ── 第 {page} 页（offset={offset}）──")
 
-            cases = self._fetch_list_page(query1, query2, offset)
+                cases = self._fetch_list_page(query1, query2, offset)
 
-            if cases is None:
-                print(f"[{SOURCE_NAME}] 列表页请求失败，停止")
-                break
-            if not cases:
-                print(f"[{SOURCE_NAME}] 无更多结果，停止")
-                break
+                if cases is None:
+                    print(f"[{SOURCE_NAME}] 列表页请求失败，停止")
+                    break
+                if not cases:
+                    print(f"[{SOURCE_NAME}] 无更多结果，停止")
+                    break
 
-            page_saved = 0
-            for case_basic in cases:
-                # 尝试进入详情页获取全文
-                detail_content = ""
-                detail_url = case_basic.get("url", "")
-                if detail_url:
-                    detail_content = self._fetch_detail_content(detail_url)
-                    time.sleep(1.0)
+                page_saved = 0
+                for case_basic in cases:
+                    # 尝试进入详情页获取全文
+                    detail_content = ""
+                    detail_url = case_basic.get("url", "")
+                    if detail_url:
+                        detail_content = self._fetch_detail_content(detail_url)
+                        time.sleep(1.0)
 
-                saved = self.save({
-                    "case_no":       case_basic.get("case_no"),
-                    "title_en":      case_basic.get("case_name"),
-                    "country":       "日本",
-                    "court":         case_basic.get("court"),
-                    "judgment_date": case_basic.get("judgment_date"),
-                    "content_en":    detail_content or case_basic.get("summary", ""),
-                    "keywords":      ",".join(filter(None, [query1, query2])),
-                    "source":        SOURCE_NAME,
-                    "url":           detail_url,
-                    "pdf_url":       case_basic.get("pdf_url", ""),
-                })
-                if saved:
-                    page_saved += 1
-                    total_saved += 1
+                    saved = self.save({
+                        "case_no":       case_basic.get("case_no"),
+                        "title_en":      case_basic.get("case_name"),
+                        "country":       "日本",
+                        "court":         case_basic.get("court"),
+                        "judgment_date": case_basic.get("judgment_date"),
+                        "content_en":    detail_content or case_basic.get("summary", ""),
+                        "keywords":      ",".join(filter(None, [query1, query2])),
+                        "source":        SOURCE_NAME,
+                        "url":           detail_url,
+                        "pdf_url":       case_basic.get("pdf_url", ""),
+                    })
+                    if saved:
+                        page_saved += 1
+                        total_saved += 1
 
-            print(f"[{SOURCE_NAME}] 第 {page} 页完成，本页入库 {page_saved} 条，累计 {total_saved} 条")
+                print(f"[{SOURCE_NAME}] 第 {page} 页完成，本页入库 {page_saved} 条，累计 {total_saved} 条")
 
-            # 如果本页结果不足一页，说明已到最后一页
-            if len(cases) < PAGE_SIZE:
-                print(f"[{SOURCE_NAME}] 已到达最后一页，停止")
-                break
+                # 如果本页结果不足一页，说明已到最后一页
+                if len(cases) < PAGE_SIZE:
+                    print(f"[{SOURCE_NAME}] 已到达最后一页，停止")
+                    break
 
-            page += 1
-            time.sleep(2)
+                page += 1
+                time.sleep(2)
 
-        print(f"[{SOURCE_NAME}] 全部完成，共入库 {total_saved} 条")
+            print(f"[{SOURCE_NAME}] 全部完成，共入库 {total_saved} 条")
+            if job_id is not None:
+                self._finish_crawl_job_record(int(job_id), True, total_saved, None)
+        except Exception as e:
+            print(f"[{SOURCE_NAME}] 爬取异常: {e}")
+            if job_id is not None:
+                self._try_finish_crawl_job_failed(int(job_id), str(e))
+            raise
 
     # ─── 列表页爬取 ───────────────────────────────────────────────────────────
 
@@ -348,6 +434,12 @@ def parse_args():
     search.add_argument("--court-name",        default="",      help="裁判所名（如 東京地方裁判所）")
     search.add_argument("--branch-name",       default="",      help="支部名")
     search.add_argument("--max-pages",         default=50, type=int, help="最大爬取页数（每页30条）")
+    search.add_argument(
+        "--crawl-job-id",
+        default=None,
+        type=int,
+        help="crawl_job_record 主键，结束时回写 status/saved_count/finished_at",
+    )
 
     # 数据库参数
     db = parser.add_argument_group("数据库连接")
