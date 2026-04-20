@@ -446,7 +446,7 @@ def parse_args():
     db.add_argument("--db-host",     default="localhost",                  help="数据库主机")
     db.add_argument("--db-port",     default=3306, type=int,               help="数据库端口")
     db.add_argument("--db-user",     default="root",                       help="数据库用户名")
-    db.add_argument("--db-password", default="123456",                     help="数据库密码")
+    db.add_argument("--db-password", default="825825lmLM@",                     help="数据库密码")
     db.add_argument("--db-name",     default="foreign_law_case_system_db", help="数据库名")
 
     return parser.parse_args()

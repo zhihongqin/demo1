@@ -105,16 +105,7 @@
                 AND lc.country = #{country}
             </if>
         </where>
-        <choose>
-            <when test="keyword != null and keyword != ''">
-                ORDER BY MATCH(lc.title_zh, lc.title_en, lc.case_reason, lc.keywords, lc.summary_zh)
-                    AGAINST(#{keyword} IN NATURAL LANGUAGE MODE) DESC,
-                    lc.${orderBy} ${orderDir}
-            </when>
-            <otherwise>
-                ORDER BY lc.${orderBy} ${orderDir}
-            </otherwise>
-        </choose>
+        ORDER BY lc.${orderBy} ${orderDir}
     </select>
 
 </mapper>
