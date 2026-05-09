@@ -64,6 +64,11 @@ public interface LegalCaseService extends IService<LegalCase> {
     void triggerScore(Long caseId);
 
     /**
+     * 一键触发完整 AI 处理流程（翻译 → 摘要 → 评分），异步执行，立即返回
+     */
+    void processCase(Long caseId);
+
+    /**
      * 手动将案例 AI 处理状态标记为已完成（ai_status = 2）
      * 用于 AI 处理卡住或失败后的人工干预
      */

@@ -190,6 +190,17 @@ public class LegalCaseController {
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
+     * 一键触发完整 AI 处理流程（翻译 → 摘要 → 评分）（管理员）。
+     * <p>异步执行，立即返回；会将 ai_status 重置为处理中（1），完成后置为 2，失败置为 3。
+     */
+    @PostMapping("/{id}/process")
+    public Result<Void> processCase(@PathVariable Long id) {
+        requireAdmin();
+        legalCaseService.processCase(id);
+        return Result.success("AI处理任务已提交，正在后台处理（翻译 → 摘要 → 评分）");
+    }
+
+    /**
      * 手动触发翻译（管理员）。
      * <p>异步执行，立即返回。可通过 GET /{id}/translations 查询处理进度。
      */

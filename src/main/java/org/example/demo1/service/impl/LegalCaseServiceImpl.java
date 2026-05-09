@@ -227,6 +227,12 @@ public class LegalCaseServiceImpl extends ServiceImpl<LegalCaseMapper, LegalCase
     }
 
     @Override
+    public void processCase(Long caseId) {
+        checkCaseExists(caseId);
+        caseAgentService.processCase(caseId);
+    }
+
+    @Override
     public void triggerTranslation(Long caseId) {
         checkCaseExists(caseId);
         caseAgentService.triggerTranslation(caseId);
