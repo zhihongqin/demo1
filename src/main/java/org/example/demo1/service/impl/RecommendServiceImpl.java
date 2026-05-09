@@ -123,7 +123,7 @@ public class RecommendServiceImpl implements RecommendService {
         int safeLimit = Math.min(Math.max(limit, 1), 20);
         PersonalizedRecommendVO result = new PersonalizedRecommendVO();
 
-        // 未登录或无行为数据时降级为热门推荐
+        // 第一层降级：未登录
         if (userId == null) {
             result.setBasis("popular");
             result.setCases(toCaseListVO(popularCases(safeLimit)));
@@ -133,9 +133,18 @@ public class RecommendServiceImpl implements RecommendService {
         // 构建用户兴趣画像
         UserProfile profile = buildUserProfile(userId);
 
+        // 第二层降级：已登录但无任何行为记录（真正的冷启动）
+        if (profile.getInteractedCaseIds().isEmpty()) {
+            log.debug("用户无行为记录，冷启动降级: userId={}", userId);
+            result.setBasis("new_user");
+            result.setCases(toCaseListVO(popularCases(safeLimit)));
+            return result;
+        }
+
+        // 第三层降级：有行为但 AI 字段全为空（案例未完成处理），无法提取有效特征
         if (profile.isEmpty()) {
-            log.debug("用户无行为数据，降级热门推荐: userId={}", userId);
-            result.setBasis("popular");
+            log.debug("用户行为案例字段缺失，无法提取特征，降级: userId={}", userId);
+            result.setBasis("new_user");
             result.setCases(toCaseListVO(popularCases(safeLimit)));
             return result;
         }
@@ -157,7 +166,9 @@ public class RecommendServiceImpl implements RecommendService {
                 .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
 
+        // 第四层降级：候选集与用户偏好完全不重叠
         if (ranked.isEmpty()) {
+            log.debug("候选集无匹配，降级热门推荐: userId={}", userId);
             result.setBasis("popular");
             result.setCases(toCaseListVO(popularCases(safeLimit)));
             return result;
@@ -191,11 +202,14 @@ public class RecommendServiceImpl implements RecommendService {
         profile.getInteractedCaseIds().addAll(favoriteCaseIds);
         profile.getInteractedCaseIds().addAll(browsedCaseIds);
 
-        // 拉取交互过的案例，提取特征
+        // 拉取交互过的案例，提取特征（只用 AI 处理完成的案例，确保字段有效）
         Set<Long> allIds = new HashSet<>(profile.getInteractedCaseIds());
         if (allIds.isEmpty()) return profile;
 
-        List<LegalCase> interactedCases = legalCaseMapper.selectBatchIds(allIds);
+        List<LegalCase> interactedCases = legalCaseMapper.selectList(
+                new LambdaQueryWrapper<LegalCase>()
+                        .in(LegalCase::getId, allIds)
+                        .eq(LegalCase::getAiStatus, 2));
         for (LegalCase lc : interactedCases) {
             double weight = favoriteCaseIds.contains(lc.getId()) ? 3.0 : 1.0;
             // 案件类型偏好
